@@ -17,11 +17,9 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Butter.Core
-                     , Butter.Core.BEncode
   build-depends:       base >=4.7 && <4.8
-                     , bytestring >=0.9 && <0.10
-                     , containers >=0.5 && <0.6
-                     , attoparsec >=0.10 && <0.11
+                     , bytestring >=0.10 && <0.11
+                     , bencoding >=0.4 && <0.5
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -32,19 +30,6 @@ test-suite butter-core-spec
                      , test
   build-depends:       base >=4 && <5
                      , hspec >=1.11 && <2
-                     , bytestring >=0.9 && <0.10
-                     , containers >=0.5 && <0.6
-                     , attoparsec >=0.10 && <0.11
-  default-language:    Haskell2010
-
-benchmark decode-benchmark
-  type:                exitcode-stdio-1.0
-  main-is:             decode.hs
-  hs-source-dirs:      benchmark
-  build-depends:       base >=4.7 && <4.8
-                     , bytestring >=0.9 && <0.10
-                     , containers >=0.5 && <0.6
-                     , attoparsec >=0.10 && <0.11
-                     , butter-core
-                     , time >=1.4 && <1.5
+                     , bencoding >=0.4 && <0.5
+                     , bytestring >=0.10 && <0.11
   default-language:    Haskell2010
