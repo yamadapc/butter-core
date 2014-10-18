@@ -1,20 +1,20 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-module Butter.Core.MetaInfo where
+module Butter.Torrent where
 
 import Data.BEncode as BE
 import Data.Typeable (Typeable)
 import qualified Data.ByteString as B (ByteString)
 
-data MetaInfo = MetaInfo { miAnnounce     :: !B.ByteString
-                         , miAnnounceList :: !(Maybe [[B.ByteString]])
-                         , miComment      :: !(Maybe B.ByteString)
-                         , miCreatedBy    :: !(Maybe B.ByteString)
-                         , miCreationDate :: !(Maybe Integer)
-                         , miEncoding     :: !(Maybe B.ByteString)
-                         , miInfo         :: !FileInfo
-                         }
+data Torrent = Torrent { miAnnounce     :: !B.ByteString
+                       , miAnnounceList :: !(Maybe [[B.ByteString]])
+                       , miComment      :: !(Maybe B.ByteString)
+                       , miCreatedBy    :: !(Maybe B.ByteString)
+                       , miCreationDate :: !(Maybe Integer)
+                       , miEncoding     :: !(Maybe B.ByteString)
+                       , miInfo         :: !FileInfo
+                       }
   deriving(Eq, Typeable, Show)
 
 data FileInfo = FileInfo { fiPieceLength :: !Integer
@@ -35,23 +35,23 @@ data FileNode = FileNode { fnLength :: !Integer
                          }
   deriving(Eq, Typeable, Show)
 
-instance BE.BEncode MetaInfo where
-    toBEncode MetaInfo {..} = toDict $ "announce"      .=! miAnnounce
-                                    .: "announce-list" .=? miAnnounceList
-                                    .: "comment"       .=? miComment
-                                    .: "created by"    .=? miCreatedBy
-                                    .: "creation date" .=? miCreationDate
-                                    .: "encoding"      .=? miEncoding
-                                    .: "info"          .=! miInfo
-                                    .: endDict
+instance BE.BEncode Torrent where
+    toBEncode Torrent {..} = toDict $ "announce"      .=! miAnnounce
+                                   .: "announce-list" .=? miAnnounceList
+                                   .: "comment"       .=? miComment
+                                   .: "created by"    .=? miCreatedBy
+                                   .: "creation date" .=? miCreationDate
+                                   .: "encoding"      .=? miEncoding
+                                   .: "info"          .=! miInfo
+                                   .: endDict
 
-    fromBEncode = fromDict $ MetaInfo <$>! "announce"
-                                      <*>? "announce-list"
-                                      <*>? "comment"
-                                      <*>? "created by"
-                                      <*>? "creation date"
-                                      <*>? "encoding"
-                                      <*>! "info"
+    fromBEncode = fromDict $ Torrent <$>! "announce"
+                                     <*>? "announce-list"
+                                     <*>? "comment"
+                                     <*>? "created by"
+                                     <*>? "creation date"
+                                     <*>? "encoding"
+                                     <*>! "info"
 
 instance BE.BEncode FileInfo where
     toBEncode FileInfo {..} = toDict $ "piece length"  .=! fiPieceLength
