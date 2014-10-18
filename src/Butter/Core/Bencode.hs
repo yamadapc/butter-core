@@ -13,6 +13,9 @@ data BEValue = BEInt Integer
              | BEDict (Map B.ByteString BEValue)
   deriving(Eq, Ord, Show)
 
+parseBEValues :: Parser [BEValue]
+parseBEValues = many parseBEValue
+
 parseBEValue :: Parser BEValue
 parseBEValue = parseBEInt    <|>
                parseBEString <|>
