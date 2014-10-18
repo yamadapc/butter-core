@@ -1,13 +1,13 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-module ButterCoreBencodeSpec where
+module ButterCoreBEncodeSpec where
 
 import Data.Attoparsec
 import Data.ByteString
 import Data.Map
 import Test.Hspec
 
-import Butter.Core.Bencode
+import Butter.Core.BEncode
 
 spec :: Spec
 spec =

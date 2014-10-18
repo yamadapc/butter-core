@@ -2,7 +2,7 @@
 import Data.Attoparsec
 import qualified Data.ByteString as B
 import Data.Time.Clock
-import Butter.Core.Bencode
+import Butter.Core.BEncode
 
 main :: IO ()
 main = do

@@ -1,11 +1,10 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Butter.Core.Bencode where
+module Butter.Core.BEncode where
 
-import Control.Applicative
-import Data.Attoparsec.Char8 as AP
-import qualified Data.ByteString as B
-import Data.Map as M (Map, fromList)
+import Control.Applicative ((<$>), (<|>), many)
+import Data.Attoparsec.Char8 as AP (Parser, char, decimal, take)
+import qualified Data.ByteString as B (ByteString)
+import Data.Map.Strict as M (Map, fromList)
 
 data BEValue = BEInt Integer
              | BEString B.ByteString
