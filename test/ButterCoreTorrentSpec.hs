@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module ButterCoreTorrentSpec where
 
-import Data.BEncode (encode, decode)
+import Data.BEncode
 import qualified Data.ByteString as B (readFile)
 import qualified Data.ByteString.Base16 as Base16 (encode)
-import qualified Data.ByteString.Lazy as L (toStrict)
-import Butter.Core.Torrent (Torrent, fromBEncode, miAnnounce, toBEncode, infoHash)
 import Test.Hspec
+
+import Butter.Core.Torrent
 
 spec :: Spec
 spec = do
@@ -15,6 +15,10 @@ spec = do
             f <- B.readFile "test.torrent"
             let Right to = decode f >>= fromBEncode :: Either String Torrent
             miAnnounce to `shouldBe` "http://torrent.ubuntu.com:6969/announce"
+            let i = miInfo to
+            fiName i `shouldBe` Just "ubuntu-14.04-desktop-amd64.iso"
+            fiLength i `shouldBe` Just 1010827264
+            fiPieceLength i `shouldBe` 524288
 
     describe "infoHash" $ do
         it "gets the hash for the `info` torrent node" $ do
