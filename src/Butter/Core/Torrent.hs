@@ -1,7 +1,12 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-module Butter.Torrent where
+module Butter.Core.Torrent ( FileInfo(..)
+                           , FileNode(..)
+                           , Torrent(..)
+                           , fromBEncode
+                           , toBEncode
+                           ) where
 
 import Data.BEncode as BE
 import Data.Typeable (Typeable)
