@@ -5,10 +5,10 @@ module Butter.Core.Torrent ( FileInfo(..)
                            , FileNode(..)
                            , Torrent(..)
                            , fromBEncode
-                           , infoHash
                            , toBEncode
                            ) where
 
+import Control.Applicative ((<*>), pure)
 import qualified Crypto.Hash.SHA1 as SHA1 (hashlazy)
 import Data.BEncode as BE
 import Data.Typeable (Typeable)
@@ -31,7 +31,7 @@ data FileInfo = FileInfo { fiFiles       :: !(Maybe [FileNode])
                          , fiPieceLength :: !Integer
                          , fiPieces      :: !B.ByteString
                          , fiPrivate     :: !(Maybe Integer)
-
+                         , fiHash        :: !B.ByteString
                          }
   deriving(Eq, Typeable, Show)
 
@@ -59,6 +59,7 @@ instance BE.BEncode Torrent where
                                      <*>? "encoding"
                                      <*>! "info"
 
+
 instance BE.BEncode FileInfo where
     toBEncode FileInfo {..} = toDict $ "files"        .=? fiFiles
                                     .: "length"       .=? fiLength
@@ -69,13 +70,15 @@ instance BE.BEncode FileInfo where
                                     .: "private"      .=? fiPrivate
                                     .: endDict
 
-    fromBEncode = fromDict $ FileInfo <$>? "files"
-                                      <*>? "length"
-                                      <*>? "md5sum"
-                                      <*>? "name"
-                                      <*>! "piece length"
-                                      <*>! "pieces"
-                                      <*>? "private"
+    fromBEncode d = let hash = SHA1.hashlazy $ BE.encode d in
+                      fromDict (FileInfo <$>? "files"
+                                         <*>? "length"
+                                         <*>? "md5sum"
+                                         <*>? "name"
+                                         <*>! "piece length"
+                                         <*>! "pieces"
+                                         <*>? "private"
+                                         <*> pure hash) d
 
 instance BE.BEncode FileNode where
     toBEncode FileNode {..} = toDict $ "length" .=! fnLength
@@ -86,6 +89,3 @@ instance BE.BEncode FileNode where
     fromBEncode = fromDict $ FileNode <$>! "length"
                                       <*>? "md5sum"
                                       <*>! "path"
-
-infoHash :: Torrent -> B.ByteString
-infoHash = SHA1.hashlazy . BE.encode . miInfo
