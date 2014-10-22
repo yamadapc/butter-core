@@ -20,9 +20,9 @@ spec = do
             fiLength i `shouldBe` Just 1010827264
             fiPieceLength i `shouldBe` 524288
 
-    describe "infoHash" $ do
+    describe "fiHash" $ do
         it "gets the hash for the `info` torrent node" $ do
             f <- B.readFile "test.torrent"
             let Right to = decode f >>= fromBEncode :: Either String Torrent
-            Base16.encode (infoHash to)
+            Base16.encode (fiHash $ miInfo to)
               `shouldBe` "4d753474429d817b80ff9e0c441ca660ec5d2450"
