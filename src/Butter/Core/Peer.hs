@@ -4,12 +4,15 @@
 {-# LANGUAGE OverlappingInstances #-}
 module Butter.Core.Peer ( Peer(..)
                         , Binary(..)
+                        , encode
                         , decode
+                        , getAll
+                        , putAll
                         )
   where
 
 import Control.Monad (liftM)
-import Data.Binary (Binary, decode, get, put)
+import Data.Binary (Binary, encode, decode, get, put)
 import Data.Binary.Get (Get, isEmpty)
 import Data.Binary.Put (Put)
 import Data.Word (Word16, Word32)
