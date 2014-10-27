@@ -12,7 +12,7 @@ spec :: Spec
 spec = do
     describe "fromBEncode" $ do
         it "decodes the announce URLs" $ do
-            f <- B.readFile "test.torrent"
+            f <- B.readFile "test1.torrent"
             let Right to = decode f >>= fromBEncode :: Either String Torrent
             miAnnounce to `shouldBe` "http://torrent.ubuntu.com:6969/announce"
             let i = miInfo to
