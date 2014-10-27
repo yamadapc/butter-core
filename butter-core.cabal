@@ -1,39 +1,49 @@
-name:                butter-core
-version:             0.1.0.0
-synopsis:            Core logic for Butter, a toy torrent client written in haskell.
-description:         This module is supposed to hold the core logic required to
-                     build a torrent client. Most parsing functions and
-                     downloading functions for butter will fall onto this
-                     module, in a cleanly tested and reusable form.
-homepage:            https://github.com/yamadapc/butter-core
-license:             MIT
-license-file:        LICENSE
-author:              Pedro Tacla Yamada
-maintainer:          tacla.yamada@gmail.com
-copyright:           (c) Pedro Tacla Yamada 2014
-category:            Web
-build-type:          Simple
-cabal-version:       >=1.10
+name: butter-core
+version: 0.1.0.0
+cabal-version: >=1.10
+build-type: Simple
+license: MIT
+license-file: LICENSE
+copyright: (c) Pedro Tacla Yamada 2014
+maintainer: tacla.yamada@gmail.com
+homepage: https://github.com/yamadapc/butter-core
+synopsis: Core logic for Butter, a toy torrent client written in haskell.
+description:
+    This module is supposed to hold the core logic required to
+    build a torrent client. Most parsing functions and
+    downloading functions for butter will fall onto this
+    module, in a cleanly tested and reusable form.
+category: Web
+author: Pedro Tacla Yamada
 
 library
-  exposed-modules:     Butter.Core
-                     , Butter.Core.Torrent
-  build-depends:       base >=4.7 && <4.8
-                     , cryptohash >=0.11 && <0.12
-                     , bytestring >=0.10 && <0.11
-                     , bencoding >=0.4 && <0.5
-  hs-source-dirs:      src
-  default-language:    Haskell2010
+    build-depends:
+        split >=0.2 && <0.3,
+        base >=4.7 && <4.8,
+        cryptohash >=0.11 && <0.12,
+        bytestring >=0.10 && <0.11,
+        bencoding >=0.4 && <0.5,
+        http-client >=0.4 && <0.5
+    exposed-modules:
+        Butter.Core
+        Butter.Core.Torrent
+    exposed: True
+    buildable: True
+    default-language: Haskell2010
+    hs-source-dirs: src
 
 test-suite butter-core-spec
-  type:                exitcode-stdio-1.0
-  main-is:             Spec.hs
-  hs-source-dirs:      src
-                     , test
-  build-depends:       base >=4 && <5
-                     , base16-bytestring >=0.1 && <0.2
-                     , cryptohash >=0.11 && <0.12
-                     , hspec >=1.11 && <2
-                     , bencoding >=0.4 && <0.5
-                     , bytestring >=0.10 && <0.11
-  default-language:    Haskell2010
+    build-depends:
+        split >=0.2 && <0.3,
+        base >=4 && <5,
+        base16-bytestring >=0.1 && <0.2,
+        cryptohash >=0.11 && <0.12,
+        hspec >=1.11 && <2,
+        bencoding >=0.4 && <0.5,
+        bytestring >=0.10 && <0.11,
+        http-client >=0.4 && <0.5
+    type: exitcode-stdio-1.0
+    main-is: Spec.hs
+    buildable: True
+    default-language: Haskell2010
+    hs-source-dirs: src test
