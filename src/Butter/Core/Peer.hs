@@ -1,19 +1,45 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-module Butter.Core.Peer where
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverlappingInstances #-}
+module Butter.Core.Peer ( Peer(..)
+                        , Binary(..)
+                        , decode
+                        )
+  where
 
-import qualified Data.ByteString as B (ByteString, unpack)
-import Data.List.Split (chunksOf)
-import Data.Typeable (Typeable)
-import Data.Word (Word8)
+import Control.Monad (liftM)
+import Data.Binary (Binary, decode, get, put)
+import Data.Binary.Get (Get, isEmpty)
+import Data.Binary.Put (Put)
+import Data.Word (Word16, Word32)
+import GHC.Generics
 
-data Peer = Peer { pIp   :: [Word8]
-                 , pPort :: [Word8]
+data Peer = Peer { pIp   :: Word32
+                 , pPort :: Word16
                  }
-  deriving(Eq, Ord, Show, Typeable)
+  deriving(Generic, Eq, Ord, Show)
 
-parsePeersString :: B.ByteString -> [Peer]
-parsePeersString = map peerFromSubstring . chunksOf 6 . B.unpack
-  where peerFromSubstring :: [Word8] -> Peer
-        peerFromSubstring str = Peer { pIp   = take 4 str
-                                     , pPort = drop 4 str
-                                     }
+instance Binary Peer
+instance Binary [Peer] where
+    get = getAll
+    put = putAll
+
+-- |
+-- Puts a list of `Binary` instance elements directly concatenating their
+-- binary values.
+putAll :: Binary a => [a] -> Put
+putAll = mapM_ put
+
+-- |
+-- Consumes all elements, getting a single type. Modeled after `binary`'s
+-- internal funtion `getMany`.
+getAll :: Binary a => Get [a]
+getAll = go []
+  where go acc = get >>= \x -> isEmpty >>= \case
+            True  -> return $ reverse (x:acc)
+            False -> seq x $ liftM (x:) getAll
+
+-- TODO:
+-- [ ] - Client State model
+-- [ ] - Protocol Messages' serialization and deserialization

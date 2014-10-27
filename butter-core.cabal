@@ -19,6 +19,8 @@ author: Pedro Tacla Yamada
 library
     build-depends:
         split >=0.2 && <0.3,
+        binary >=0.7 && <0.8,
+        stm >=2.4 && <3,
         base >=4.7 && <4.8,
         cryptohash >=0.11 && <0.12,
         bytestring >=0.10 && <0.11,
@@ -38,6 +40,8 @@ library
 test-suite butter-core-spec
     build-depends:
         split >=0.2 && <0.3,
+        binary >=0.7 && <0.8,
+        stm >=2.4 && <3,
         base >=4 && <5,
         base16-bytestring >=0.1 && <0.2,
         cryptohash >=0.11 && <0.12,
