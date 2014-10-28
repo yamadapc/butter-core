@@ -25,12 +25,15 @@ library
         cryptohash >=0.11 && <0.12,
         bytestring >=0.10 && <0.11,
         bencoding >=0.4 && <0.5,
-        http-client >=0.4 && <0.5
+        http-client >=0.4 && <0.5,
+        old-locale <1.1,
+        time >=1.4 && <2,
+        unix >=2.7 && <2.8
     exposed-modules:
         Butter.Core
         Butter.Core.Peer
         Butter.Core.Torrent
-        Butter.Core.Tracker
+        Butter.Core.Tracker.Client
         Butter.Core.Util
     exposed: True
     buildable: True
@@ -48,7 +51,10 @@ test-suite butter-core-spec
         hspec >=1.11 && <2,
         bencoding >=0.4 && <0.5,
         bytestring >=0.10 && <0.11,
-        http-client >=0.4 && <0.5
+        http-client >=0.4 && <0.5,
+        old-locale <1.1,
+        time >=1.4 && <2,
+        unix >=2.7 && <2.8
     type: exitcode-stdio-1.0
     main-is: Spec.hs
     buildable: True

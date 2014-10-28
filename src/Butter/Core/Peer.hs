@@ -2,21 +2,32 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverlappingInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Butter.Core.Peer ( Peer(..)
+                        , PeerId
+                        , newPeerId
+                        , getAll
+                        , putAll
+                        -- Exported from `Data.Binary`
                         , Binary(..)
                         , encode
                         , decode
-                        , getAll
-                        , putAll
                         )
   where
 
-import Control.Monad (liftM)
+import Control.Applicative ((<$>))
 import Data.Binary (Binary, encode, decode, get, put)
 import Data.Binary.Get (Get, isEmpty)
 import Data.Binary.Put (Put)
+import qualified Data.ByteString as B (ByteString)
+import qualified Data.ByteString.Char8 as C (pack)
+import Data.Time (formatTime, getCurrentTime)
 import Data.Word (Word16, Word32)
-import GHC.Generics
+import GHC.Generics (Generic)
+import System.Locale (defaultTimeLocale)
+import System.Posix.Process (getProcessID) -- sigh...
+
+type PeerId = B.ByteString
 
 data Peer = Peer { pIp   :: Word32
                  , pPort :: Word16
@@ -27,6 +38,15 @@ instance Binary Peer
 instance Binary [Peer] where
     get = getAll
     put = putAll
+
+-- |
+-- Generates a new peer id randomly
+newPeerId :: IO PeerId
+newPeerId = do
+    t <- reverse <$> formatTime defaultTimeLocale "%s" <$> getCurrentTime
+    pid <- getProcessID
+    print $ length $ show pid
+    return $ C.pack $ take 20 $ "BU-" ++ show pid ++ t
 
 -- |
 -- Puts a list of `Binary` instance elements directly concatenating their
