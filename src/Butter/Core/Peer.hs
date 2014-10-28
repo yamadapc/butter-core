@@ -45,7 +45,7 @@ newPeerId :: IO PeerId
 newPeerId = do
     t <- reverse <$> formatTime defaultTimeLocale "%s" <$> getCurrentTime
     pid <- getProcessID
-    return $ C.pack $ take 20 $ "BU-" ++ show pid ++ t
+    return $ C.pack $ take 20 $ "BU-" ++ show pid ++ t ++ repeat '0'
 
 -- |
 -- Puts a list of `Binary` instance elements directly concatenating their
