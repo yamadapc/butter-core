@@ -45,7 +45,6 @@ newPeerId :: IO PeerId
 newPeerId = do
     t <- reverse <$> formatTime defaultTimeLocale "%s" <$> getCurrentTime
     pid <- getProcessID
-    print $ length $ show pid
     return $ C.pack $ take 20 $ "BU-" ++ show pid ++ t
 
 -- |
