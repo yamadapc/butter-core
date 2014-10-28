@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 module Butter.Core.Torrent ( FileInfo(..)
@@ -97,5 +98,7 @@ instance BE.BEncode FileNode where
 -- |
 -- Convenience function for reading and parsing a torrent's metainfo from
 -- a file.
-readTorrentFile :: FilePath -> IO (Either String Torrent)
-readTorrentFile = fmap BE.decode . B.readFile
+readTorrentFile :: FilePath -> IO Torrent
+readTorrentFile fp = fmap BE.decode (B.readFile fp) >>= \case
+    Left err -> fail err
+    Right to -> return to
