@@ -61,8 +61,4 @@ getAll :: Binary a => Get [a]
 getAll = go []
   where go acc = get >>= \x -> isEmpty >>= \case
             True  -> return $ reverse (x:acc)
-            False -> seq x $ liftM (x:) getAll
-
--- TODO:
--- [ ] - Client State model
--- [ ] - Protocol Messages' serialization and deserialization
+            False -> seq x $ (x:) <$> getAll
