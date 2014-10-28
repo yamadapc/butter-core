@@ -7,7 +7,7 @@ module Butter.Core.Tracker.Client where
 import Butter.Core.Torrent (FileInfo(..), Torrent(..), fromBEncode, toBEncode)
 import Butter.Core.Peer as Peer (Peer, PeerId, decode)
 import Butter.Core.Util (urlEncodeVars)
-import Control.Concurrent
+import Control.Concurrent (Chan, forkIO, newChan, threadDelay, writeList2Chan)
 import Data.BEncode as BE (BEncode, (.:), (.=!), (.=?), (<*>?), (<*>!),
                            (<$>!), decode, endDict, fromDict, toDict)
 import qualified Data.ByteString as B (ByteString)
