@@ -5,14 +5,18 @@ module Butter.Core.Torrent ( FileInfo(..)
                            , FileNode(..)
                            , Torrent(..)
                            , fromBEncode
+                           , readTorrentFile
                            , toBEncode
+                           -- Exported from `Data.BEncode`
+                           , decode
+                           , encode
                            ) where
 
 import Control.Applicative ((<*>), pure)
 import qualified Crypto.Hash.SHA1 as SHA1 (hashlazy)
 import Data.BEncode as BE
 import Data.Typeable (Typeable)
-import qualified Data.ByteString as B (ByteString)
+import qualified Data.ByteString as B (ByteString, readFile)
 
 data Torrent = Torrent { miAnnounce     :: !B.ByteString
                        , miAnnounceList :: !(Maybe [[B.ByteString]])
@@ -89,3 +93,9 @@ instance BE.BEncode FileNode where
     fromBEncode = fromDict $ FileNode <$>! "length"
                                       <*>? "md5sum"
                                       <*>! "path"
+
+-- |
+-- Convenience function for reading and parsing a torrent's metainfo from
+-- a file.
+readTorrentFile :: FilePath -> IO (Either String Torrent)
+readTorrentFile = fmap BE.decode . B.readFile
