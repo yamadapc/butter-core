@@ -31,6 +31,7 @@ library
         unix >=2.7 && <2.8
     exposed-modules:
         Butter.Core
+        Butter.Core.MetaInfo
         Butter.Core.Peer
         Butter.Core.Torrent
         Butter.Core.Tracker.Client

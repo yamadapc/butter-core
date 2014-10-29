@@ -3,13 +3,25 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+-- |
+-- Module      : Butter.Core.Tracker.Client
+-- Copyright   : Pedro Tacla Yamada
+-- License     : MIT (see LICENSE)
+--
+-- Maintainer  : Pedro Tacla Yamada <tacla.yamada@gmail.com>
+-- Stability   : unstable
+-- Portability : unportable
+--
+-- A abstraction over a Tracker client, hitting some announce URL
+-- continously.
 module Butter.Core.Tracker.Client where
 
-import Butter.Core.Torrent (FileInfo(..), Torrent(..), fromBEncode, toBEncode)
+import Butter.Core.MetaInfo (FileInfo(..), MetaInfo(..), fromBEncode, toBEncode)
 import Butter.Core.Peer as Peer (Peer, PeerId, decode)
+import Butter.Core.Torrent
 import Butter.Core.Util (urlEncodeVars)
 import Control.Concurrent (Chan, forkIO, newChan, threadDelay, writeList2Chan)
-import Control.Concurrent.STM (TVar, newTVarIO, readTVarIO)
+import Control.Concurrent.STM (TVar, readTVarIO)
 import Data.BEncode as BE (BEncode, (.:), (.=!), (.=?), (<*>?), (<*>!),
                            (<$>!), decode, endDict, fromDict, toDict)
 import qualified Data.ByteString as B (ByteString)
@@ -18,13 +30,6 @@ import qualified Data.ByteString.Char8 as C (pack, unpack)
 import Data.Typeable (Typeable)
 
 import Network.HTTP.Client
-
-data TorrentStatus = Downloading { tsDownloaded :: Integer
-                                 , tsUploaded   :: Integer
-                                 }
-                   | Completed
-                   | Stopped
-  deriving(Eq)
 
 data TrackerClient = TrackerClient { tcAnnounceInterval :: Int
                                    , tcAnnounceUrl      :: B.ByteString
@@ -64,12 +69,12 @@ instance BE.BEncode TrackerResponse where
 -- |
 -- Gets a channel of peers, which will be fed as they come-in and
 -- a TorrentStatus, which should be updated as the downloaded proceeds
-getPeersChan :: Manager -> -- ^ An HTTP manager
-                PeerId ->  -- ^ The local peer's id
-                Torrent -> -- ^ A parsed torrent metainfo
+getPeersChan :: Manager ->  -- An HTTP manager
+                PeerId ->   -- The local peer's id
+                MetaInfo -> -- A parsed torrent metainfo
                 IO (TVar TorrentStatus, Chan Peer)
-getPeersChan manager clientId Torrent{..} = do
-    tsVar <- newTVarIO $ Downloading 0 0
+getPeersChan manager clientId MetaInfo{..} = do
+    tsVar <- newTStatusTVar
     chan  <- newChan :: IO (Chan Peer)
     _     <- forkIO $ loop tsVar chan
 
@@ -77,7 +82,7 @@ getPeersChan manager clientId Torrent{..} = do
   where ih = fiHash miInfo
         queryTracker' = queryTracker manager clientId (C.unpack miAnnounce) ih
         loop tsVar c = readTVarIO tsVar >>= \case
-            Downloading d u -> do -- Hit the Tracker with `update`
+            TorrentStatus TDownloading d u -> do -- Hit the Tracker with `update`
                 TrackerResponse{..} <- queryTracker' d u
                 writeList2Chan c $ Peer.decode (L.fromStrict trPeersString)
                 threadDelay $ fromIntegral trInterval * 1000
