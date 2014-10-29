@@ -8,7 +8,7 @@ import Butter.Core.Torrent (FileInfo(..), Torrent(..), fromBEncode, toBEncode)
 import Butter.Core.Peer as Peer (Peer, PeerId, decode)
 import Butter.Core.Util (urlEncodeVars)
 import Control.Concurrent (Chan, forkIO, newChan, threadDelay, writeList2Chan)
-import Control.Concurrent.STM
+import Control.Concurrent.STM (TVar, newTVarIO, readTVarIO)
 import Data.BEncode as BE (BEncode, (.:), (.=!), (.=?), (<*>?), (<*>!),
                            (<$>!), decode, endDict, fromDict, toDict)
 import qualified Data.ByteString as B (ByteString)
@@ -68,7 +68,7 @@ getPeersChan :: Manager -> -- ^ An HTTP manager
                 Torrent -> -- ^ A parsed torrent metainfo
                 IO (TVar TorrentStatus, Chan Peer)
 getPeersChan manager clientId Torrent{..} = do
-    tsVar <- atomically $ newTVar $ Downloading 0 0
+    tsVar <- newTVarIO $ Downloading 0 0
     chan  <- newChan :: IO (Chan Peer)
     _     <- forkIO $ loop tsVar chan
 
@@ -76,7 +76,7 @@ getPeersChan manager clientId Torrent{..} = do
   where ih = fiHash miInfo
         queryTracker' = queryTracker manager clientId (C.unpack miAnnounce) ih
         loop tsVar c = do
-            ts <- atomically $ readTVar tsVar
+            ts <- readTVarIO tsVar
             case ts of
                 Downloading d u -> do
                     TrackerResponse{..} <- queryTracker' d u
