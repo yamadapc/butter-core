@@ -8,6 +8,7 @@ import Butter.Core.Torrent (FileInfo(..), Torrent(..), fromBEncode, toBEncode)
 import Butter.Core.Peer as Peer (Peer, PeerId, decode)
 import Butter.Core.Util (urlEncodeVars)
 import Control.Concurrent (Chan, forkIO, newChan, threadDelay, writeList2Chan)
+import Control.Concurrent.STM
 import Data.BEncode as BE (BEncode, (.:), (.=!), (.=?), (<*>?), (<*>!),
                            (<$>!), decode, endDict, fromDict, toDict)
 import qualified Data.ByteString as B (ByteString)
@@ -17,12 +18,12 @@ import Data.Typeable (Typeable)
 
 import Network.HTTP.Client
 
-data TorrentStatus = Downloading { tsInfoHash   :: B.ByteString
-                                 , tsDownloaded :: Integer
+data TorrentStatus = Downloading { tsDownloaded :: Integer
                                  , tsUploaded   :: Integer
                                  }
                    | Completed
-  deriving(Eq, Ord, Show)
+                   | Stopped
+  deriving(Eq)
 
 data TrackerClient = TrackerClient { tcAnnounceInterval :: Int
                                    , tcAnnounceUrl      :: B.ByteString
@@ -60,23 +61,29 @@ instance BE.BEncode TrackerResponse where
                                              <*>? "warning"
 
 -- |
--- Gets a channel of peers, which will be feeded as they come-in
+-- Gets a channel of peers, which will be fed as they come-in and
+-- a TorrentStatus, which should be updated as the downloaded proceeds
 getPeersChan :: Manager -> -- ^ An HTTP manager
                 PeerId ->  -- ^ The local peer's id
                 Torrent -> -- ^ A parsed torrent metainfo
-                IO (Chan Peer)
+                IO (TVar TorrentStatus, Chan Peer)
 getPeersChan manager clientId Torrent{..} = do
-    chan <- newChan :: IO (Chan Peer)
-    _ <- forkIO $ loop chan
-    return chan
-  where queryTracker' = queryTracker manager clientId (C.unpack miAnnounce)
-                                     (fiHash miInfo) 0 0
-        loop c = do
-            TrackerResponse{..} <- queryTracker'
-            writeList2Chan c $ Peer.decode (L.fromStrict trPeersString)
-            threadDelay $ fromIntegral trInterval * 1000
-            loop c
+    tsVar <- atomically $ newTVar $ Downloading 0 0
+    chan  <- newChan :: IO (Chan Peer)
+    _     <- forkIO $ loop tsVar chan
 
+    return (tsVar, chan)
+  where ih = fiHash miInfo
+        queryTracker' = queryTracker manager clientId (C.unpack miAnnounce) ih
+        loop tsVar c = do
+            ts <- atomically $ readTVar tsVar
+            case ts of
+                Downloading d u -> do
+                    TrackerResponse{..} <- queryTracker' d u
+                    writeList2Chan c $ Peer.decode (L.fromStrict trPeersString)
+                    threadDelay $ fromIntegral trInterval * 1000
+                    loop tsVar c
+                _ -> return ()
 
 -- |
 -- Queries an announce URL for peers
