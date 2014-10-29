@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -75,15 +76,13 @@ getPeersChan manager clientId Torrent{..} = do
     return (tsVar, chan)
   where ih = fiHash miInfo
         queryTracker' = queryTracker manager clientId (C.unpack miAnnounce) ih
-        loop tsVar c = do
-            ts <- readTVarIO tsVar
-            case ts of
-                Downloading d u -> do
-                    TrackerResponse{..} <- queryTracker' d u
-                    writeList2Chan c $ Peer.decode (L.fromStrict trPeersString)
-                    threadDelay $ fromIntegral trInterval * 1000
-                    loop tsVar c
-                _ -> return ()
+        loop tsVar c = readTVarIO tsVar >>= \case
+            Downloading d u -> do -- Hit the Tracker with `update`
+                TrackerResponse{..} <- queryTracker' d u
+                writeList2Chan c $ Peer.decode (L.fromStrict trPeersString)
+                threadDelay $ fromIntegral trInterval * 1000
+                loop tsVar c
+            _ -> return () -- Torrent is done, stop querying
 
 -- |
 -- Queries an announce URL for peers
