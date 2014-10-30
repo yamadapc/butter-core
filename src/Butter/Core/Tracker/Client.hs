@@ -28,15 +28,8 @@ import qualified Data.ByteString as B (ByteString)
 import qualified Data.ByteString.Lazy as L (fromStrict, toStrict)
 import qualified Data.ByteString.Char8 as C (pack, unpack)
 import Data.Typeable (Typeable)
-
+import Data.Word (Word16)
 import Network.HTTP.Client
-
-data TrackerClient = TrackerClient { tcAnnounceInterval :: Int
-                                   , tcAnnounceUrl      :: B.ByteString
-                                   , tcErrChan          :: Chan String
-                                   , tcManager          :: Manager
-                                   , tcPeersChan        :: Chan Peer
-                                   }
 
 data TrackerResponse = TrackerResponse { trComplete    :: Integer
                                        , trIncomplete  :: Integer
@@ -69,48 +62,56 @@ instance BE.BEncode TrackerResponse where
 -- |
 -- Gets a channel of peers, which will be fed as they come-in and
 -- a TorrentStatus, which should be updated as the downloaded proceeds
-getPeersChan :: Manager ->  -- An HTTP manager
-                PeerId ->   -- The local peer's id
-                MetaInfo -> -- A parsed torrent metainfo
+getPeersChan :: Manager ->  -- ^ A HTTP manager
+                PeerId ->   -- ^ The local peer's id
+                Word16 ->   -- ^ The port the local peer is listening at
+                MetaInfo -> -- ^ A parsed torrent metainfo
                 IO (TVar TorrentStatus, Chan Peer)
-getPeersChan manager clientId MetaInfo{..} = do
+getPeersChan manager clientId p MetaInfo{..} = do
     tsVar <- newTStatusTVar
-    chan  <- newChan :: IO (Chan Peer)
-    _     <- forkIO $ loop tsVar chan
+    c <- newChan :: IO (Chan Peer)
+    _ <- forkIO $ do
+        ts <- queryTracker' "start" 0 0
+        updateChanAndWait ts c
+        loop tsVar c
 
-    return (tsVar, chan)
+    return (tsVar, c)
   where ih = fiHash miInfo
-        queryTracker' = queryTracker manager clientId (C.unpack miAnnounce) ih
+        queryTracker' = queryTracker manager clientId (C.unpack miAnnounce) p ih
+        updateChanAndWait TrackerResponse{..} c = do
+            writeList2Chan c $ Peer.decode (L.fromStrict trPeersString)
+            threadDelay $ fromIntegral trInterval * 1000
         loop tsVar c = readTVarIO tsVar >>= \case
             TorrentStatus TDownloading d u -> do -- Hit the Tracker with `update`
-                TrackerResponse{..} <- queryTracker' d u
-                writeList2Chan c $ Peer.decode (L.fromStrict trPeersString)
-                threadDelay $ fromIntegral trInterval * 1000
+                ts <- queryTracker' "update" d u
+                updateChanAndWait ts c
                 loop tsVar c
             _ -> return () -- Torrent is done, stop querying
 
 -- |
 -- Queries an announce URL for peers
-queryTracker :: Manager ->      -- ^ An HTTP manager
+queryTracker :: Manager ->      -- ^ A HTTP manager
                 PeerId ->       -- ^ The local peer's id
                 String ->       -- ^ A tracker's announce URL
+                Word16 ->       -- ^ The port the local peer is listening at
                 B.ByteString -> -- ^ A torrent's info hash
+                String ->       -- ^ The event to send to the tracker
                 Integer ->      -- ^ The amount of data already downloaded
                 Integer ->      -- ^ The amount of data already uploaded
                 IO TrackerResponse
-queryTracker manager clientId announceUrl infoHash downloadedAmt uploadedAmt =
+queryTracker manager clientId announceUrl p infoHash evt downAmt upAmt =
     case parseUrl announceUrl of
         Nothing  -> fail "Invalid announce URL."
         Just req -> do
             let req' = req { queryString = C.pack $ '?' :
                                urlEncodeVars [ ("info_hash" , C.unpack infoHash)
                                              , ("peer_id"   , C.unpack clientId)
-                                             , ("port"      , "3000")
-                                             , ("uploaded"  , show downloadedAmt)
-                                             , ("downloaded", show uploadedAmt)
+                                             , ("port"      , show p)
+                                             , ("uploaded"  , show downAmt)
+                                             , ("downloaded", show upAmt)
                                              , ("compact"   , "1")
                                              , ("numwant"   , "50")
-                                             , ("event"     , "started")
+                                             , ("event"     , evt)
                                              ]
                            }
 
