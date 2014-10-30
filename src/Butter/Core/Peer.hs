@@ -25,11 +25,12 @@ module Butter.Core.Peer (
                         )
   where
 
+import Butter.Core.Util
 import Control.Applicative ((<$>))
 import Data.Binary (Binary, encode, decode, get, put)
-import Data.Binary.Get (Get, isEmpty)
+import Data.Binary.Get (Get, isEmpty, getByteString)
 import Data.Binary.Put (Put)
-import qualified Data.ByteString as B (ByteString)
+import qualified Data.ByteString as B (ByteString, length)
 import qualified Data.ByteString.Lazy as L (ByteString)
 import qualified Data.ByteString.Char8 as C (pack)
 import Data.Time (formatTime, getCurrentTime)
@@ -54,16 +55,30 @@ newPeerId = do
     pid <- getProcessID
     return $ C.pack $ take 20 $ "BU-" ++ show pid ++ t ++ repeat '0'
 
+-- |
+-- The Bittorrent protocol name, used as a constant in handshake pw messages
+protocolName :: B.ByteString
+protocolName = "BitTorrent protocol"
+
+protocolNameLength :: PWInteger
+protocolNameLength = fromIntegral $ B.length protocolName
+
 type PWInteger = Word32
 type PWBlock = L.ByteString
-data PeerWireMessage = PWKeepAlive
+
+-- |
+-- Represents a message in the PeerWire protocol
+data PeerWireMessage = PWHandshake { pwHandshakeInfoHash :: B.ByteString
+                                   , pwHandshakePeerId   :: B.ByteString
+                                   }
+                     | PWKeepAlive
                      | PWChoke
                      | PWUnchoke
-                     | PWNotInterested
                      | PWInterested
+                     | PWNotInterested
                      | PWHave { pwHaveIndex :: PWInteger
                               }
-                     | PWBitField [Word8]
+                     | PWBitfield [Word8]
                      | PWRequest { pwRequestIndex  :: PWInteger
                                  , pwRequestBegin  :: PWInteger
                                  , pwRequestLength :: PWInteger
@@ -72,7 +87,10 @@ data PeerWireMessage = PWKeepAlive
                                , pwPieceCancel :: PWInteger
                                , pwPieceBlock  :: PWBlock
                                }
-                     -- | PWPort
+                     | PWCancel
+                     -- Temporary cheat:
+                     | PWBinary B.ByteString
+                     -- PWPort
 
 -- |
 -- Connects to a peer and returns an open socket with it. Assumes we're
@@ -89,20 +107,67 @@ connectToPeer Peer{..} = do
 sendPeerHandshake :: Socket -> IO ()
 sendPeerHandshake = undefined
 
+instance Binary PeerWireMessage where
+    get = do
+        l <- get :: Get PWInteger
+        bs <- getByteString $ fromIntegral l
+        return $ PWBinary bs
+        --if l /= 0
+            --then do
+                --t <- get :: Get Word8
+                --case t of
+                    --0 -> return PWChoke
+                    --1 -> return PWUnchoke
+                    --2 -> return PWInterested
+                    --3 -> return PWNotInterested
+                    --4 -> do
+                        --i <- get
+                        --return $ PWHave i
+                    --5 -> do
+                        --r <- getByteString l
+                        --PWBitfield r
+                    --6 ->
+                        --PWRequest
+                    --7 ->
+                        --PWPiece
+                    --8 ->
+                        --PWCancel
+                    --_ -> fail "Invalid message id."
+            --else return PWKeepAlive
+
+    put PWHandshake{..} = do
+        put protocolNameLength
+        put protocolName
+        putAll ([0, 0, 0, 0, 0, 0, 0, 0] :: [PWInteger])
+        put pwHandshakeInfoHash
+        put pwHandshakePeerId
+
+    put PWKeepAlive     = put (0 :: Word8)
+    put PWChoke         = pwEmpty 0
+    put PWUnchoke       = pwEmpty 1
+    put PWInterested    = pwEmpty 2
+    put PWNotInterested = pwEmpty 3
+    put _               = undefined
+
+-- |
+-- "Puts" an empty PeerWire message of ID @n@
+pwEmpty :: Word8 -> Put
+pwEmpty n = put (0 :: PWInteger) >> put n
+
 instance Binary Peer
 instance Binary [Peer] where
     get = getAll
     put = putAll
 
 -- |
--- Puts a list of `Binary` instance elements directly concatenating their
--- binary values.
+-- Puts a list of 'Binary' instance elements directly concatenating their
+-- serialized values
 putAll :: Binary a => [a] -> Put
 putAll = mapM_ put
 
 -- |
--- Consumes all elements, getting a single type. Modeled after `binary`'s
--- internal funtion `getMany`.
+-- Consumes all elements, getting a single type. Modeled after @binary@'s
+-- internal funtion @getMany@
 getAll :: Binary a => Get [a]
 getAll = go []
   where go acc = get >>= \x -> isEmpty >>= \case

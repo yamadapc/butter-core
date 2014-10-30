@@ -1,10 +1,15 @@
 -- |
+-- General shared logic.
+--
 -- NOTE
 -- This module is to be replaced with a complete better implementation of
 -- an URL encoding library, which is currently being worked on.
 module Butter.Core.Util where
 
 import Data.Char (ord)
+import Data.Binary as Binary (Binary, decode, encode)
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as L
 import Data.List (partition)
 import Numeric (showHex)
 
@@ -35,3 +40,9 @@ urlEncodeVars ((n,v):t) =
        where urlEncodeRest [] = []
              urlEncodeRest diff = '&' : urlEncodeVars diff
 urlEncodeVars [] = []
+
+encodeS :: Binary a => a -> B.ByteString
+encodeS = L.toStrict . Binary.encode
+
+decodeS :: Binary a => B.ByteString -> a
+decodeS = Binary.decode . L.fromStrict
