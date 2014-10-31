@@ -62,11 +62,11 @@ instance BE.BEncode TrackerResponse where
 -- |
 -- Gets a channel of peers, which will be fed as they come-in and
 -- a TorrentStatus, which should be updated as the downloaded proceeds
-getPeersChan :: Manager ->  -- ^ A HTTP manager
-                PeerId ->   -- ^ The local peer's id
-                Word16 ->   -- ^ The port the local peer is listening at
-                MetaInfo -> -- ^ A parsed torrent metainfo
-                IO (TVar TorrentStatus, Chan Peer)
+getPeersChan :: Manager  -- ^ A HTTP manager
+             -> PeerId   -- ^ The local peer's id
+             -> Word16   -- ^ The port the local peer is listening at
+             -> MetaInfo -- ^ A parsed torrent metainfo
+             -> IO (TVar TorrentStatus, Chan Peer)
 getPeersChan manager clientId p MetaInfo{..} = do
     tsVar <- newTStatusTVar
     c <- newChan :: IO (Chan Peer)
@@ -90,15 +90,15 @@ getPeersChan manager clientId p MetaInfo{..} = do
 
 -- |
 -- Queries an announce URL for peers
-queryTracker :: Manager ->      -- ^ A HTTP manager
-                PeerId ->       -- ^ The local peer's id
-                String ->       -- ^ A tracker's announce URL
-                Word16 ->       -- ^ The port the local peer is listening at
-                B.ByteString -> -- ^ A torrent's info hash
-                String ->       -- ^ The event to send to the tracker
-                Integer ->      -- ^ The amount of data already downloaded
-                Integer ->      -- ^ The amount of data already uploaded
-                IO TrackerResponse
+queryTracker :: Manager      -- ^ A HTTP manager
+             -> PeerId       -- ^ The local peer's id
+             -> String       -- ^ A tracker's announce URL
+             -> Word16       -- ^ The port the local peer is listening at
+             -> B.ByteString -- ^ A torrent's info hash
+             -> String       -- ^ The event to send to the tracker
+             -> Integer      -- ^ The amount of data already downloaded
+             -> Integer      -- ^ The amount of data already uploaded
+             -> IO TrackerResponse
 queryTracker manager clientId announceUrl p infoHash evt downAmt upAmt =
     case parseUrl announceUrl of
         Nothing  -> fail "Invalid announce URL."
