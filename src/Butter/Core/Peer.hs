@@ -14,7 +14,7 @@ module Butter.Core.Peer (
                         , PWBlock
                         , PWInteger
                         , connectToPeer
-                        , sendPeerHandshake
+                        , sendMessage
                         -- ** Binary parsing functions
                         , getAll
                         , putAll
@@ -25,7 +25,7 @@ module Butter.Core.Peer (
                         )
   where
 
-import Butter.Core.Util
+import Butter.Core.Util (encodeS)
 import Control.Applicative ((<$>))
 import Data.Binary (Binary, encode, decode, get, put)
 import Data.Binary.Get (Get, isEmpty, getByteString)
@@ -37,6 +37,7 @@ import Data.Time (formatTime, getCurrentTime)
 import Data.Word (Word8, Word16, Word32)
 import GHC.Generics (Generic)
 import Network.Socket
+import Network.Socket.ByteString (sendAll)
 import System.Locale (defaultTimeLocale)
 import System.Posix.Process (getProcessID) -- sigh...
 
@@ -103,9 +104,9 @@ connectToPeer Peer{..} = do
   where sockaddr = SockAddrInet (PortNum pPort) pIp
 
 -- |
--- Sends the handshake peerwire message through a socket
-sendPeerHandshake :: Socket -> IO ()
-sendPeerHandshake = undefined
+-- Sends a peerwire message through a socket
+sendMessage :: Socket -> PeerWireMessage -> IO ()
+sendMessage s m = sendAll s (encodeS m)
 
 instance Binary PeerWireMessage where
     get = do
