@@ -47,7 +47,7 @@ data MetaInfo = MetaInfo { miAnnounce     :: !B.ByteString
                          , miEncoding     :: !(Maybe B.ByteString)
                          , miInfo         :: !FileInfo
                          }
-  deriving(Eq, Typeable)
+  deriving(Eq, Show, Typeable)
 
 instance BE.BEncode MetaInfo where
     toBEncode MetaInfo {..} = toDict $ "announce"      .=! miAnnounce
@@ -83,7 +83,7 @@ data FileInfo = FileInfo { fiFiles       :: !(Maybe [FileNode])
                          , fiName        :: !(Maybe B.ByteString)
                          , fiPieceLength :: !Integer
                          , fiPieces      :: !B.ByteString
-                         , fiPrivate     :: !(Maybe Integer)
+                         , fiPrivate     :: !(Maybe Bool)
                          , fiHash        :: !B.ByteString
                          }
   deriving(Eq, Typeable, Show)
