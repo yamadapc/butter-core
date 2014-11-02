@@ -26,10 +26,12 @@ module Butter.Core.Peer (
   where
 
 import Butter.Core.Util (encodeS)
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>), (<*>))
+
 import Data.Binary (Binary, encode, decode, get, put)
-import Data.Binary.Get (Get, isEmpty, getByteString)
-import Data.Binary.Put (Put)
+
+import Data.Binary.Get (Get, isEmpty, getByteString, getWord16le, getWord32le)
+import Data.Binary.Put (Put, putWord16le, putWord32le)
 import qualified Data.ByteString as B (ByteString, length)
 import qualified Data.ByteString.Lazy as L (ByteString)
 import qualified Data.ByteString.Char8 as C (pack)
@@ -69,28 +71,28 @@ type PWBlock = L.ByteString
 
 -- |
 -- Represents a message in the PeerWire protocol
-data PeerWireMessage = PWHandshake { pwHandshakeInfoHash :: B.ByteString
-                                   , pwHandshakePeerId   :: B.ByteString
+data PeerWireMessage = PWHandshake { pwHandshakeInfoHash :: !B.ByteString
+                                   , pwHandshakePeerId   :: !B.ByteString
                                    }
                      | PWKeepAlive
                      | PWChoke
                      | PWUnchoke
                      | PWInterested
                      | PWNotInterested
-                     | PWHave { pwHaveIndex :: PWInteger
+                     | PWHave { pwHaveIndex :: !PWInteger
                               }
-                     | PWBitfield [Word8]
-                     | PWRequest { pwRequestIndex  :: PWInteger
-                                 , pwRequestBegin  :: PWInteger
-                                 , pwRequestLength :: PWInteger
+                     | PWBitfield !B.ByteString
+                     | PWRequest { pwRequestIndex  :: !PWInteger
+                                 , pwRequestBegin  :: !PWInteger
+                                 , pwRequestLength :: !PWInteger
                                  }
-                     | PWPiece { pwPieceIndex  :: PWInteger
-                               , pwPieceCancel :: PWInteger
-                               , pwPieceBlock  :: PWBlock
+                     | PWPiece { pwPieceIndex  :: !PWInteger
+                               , pwPieceCancel :: !PWInteger
+                               , pwPieceBlock  :: !PWBlock
                                }
                      | PWCancel
                      -- Temporary cheat:
-                     | PWBinary B.ByteString
+                     | PWBinary !B.ByteString
                      -- PWPort
 
 -- |
@@ -155,7 +157,10 @@ instance Binary PeerWireMessage where
 pwEmpty :: Word8 -> Put
 pwEmpty n = put (0 :: PWInteger) >> put n
 
-instance Binary Peer
+instance Binary Peer where
+    get = Peer <$> getWord32le <*> getWord16le
+    put Peer{..} = putWord32le pIp >> putWord16le pPort
+
 instance Binary [Peer] where
     get = getAll
     put = putAll
