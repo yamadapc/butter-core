@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module ButterCoreMetaInfoSpec where
+module Butter.Core.MetaInfoSpec where
 
 import Data.BEncode
 import qualified Data.ByteString as B (readFile)
@@ -9,8 +9,8 @@ import Test.Hspec
 
 import Butter.Core.MetaInfo
 
-fromBEncodeSpec :: Spec
-fromBEncodeSpec = do
+specBEncode :: Spec
+specBEncode = do
     it "fromBEncode :: BValue -> Result MetaInfo" $ do
         f <- B.readFile "test/test1.torrent"
         let Right mi = decode f >>= fromBEncode :: Either String MetaInfo
@@ -61,4 +61,4 @@ fromBEncodeSpec = do
 
 
 spec :: Spec
-spec = describe "BEncode instances" fromBEncodeSpec
+spec = describe "BEncode instances" specBEncode
