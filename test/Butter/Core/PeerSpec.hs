@@ -24,7 +24,7 @@ specBinary = do
             addrs = map (\p -> SockAddrInet (PortNum (pPort p)) (pIp p)) ps
         map show addrs `shouldBe` [ "10.10.10.5:128", "100.56.58.99:28525" ]
 
-    it "encode :: PMMessage (PMHandshake) -> ByteString" $ do
+    it "encode :: PWMessage (PWHandshake) -> ByteString" $ do
         let msg = PWHandshake (B.pack [0x4d, 0x75, 0x34, 0x74, 0x42, 0x9d, 0x81,
                                        0x7b, 0x80, 0xff, 0x9e, 0x0c, 0x44, 0x1c,
                                        0xa6, 0x60, 0xec, 0x5d, 0x24, 0x50])
@@ -43,45 +43,45 @@ specBinary = do
                                66, 85, 84, 45, 48, 49, 50, 51, 52, 53, 54, 55,
                                56, 57, 48, 49, 50, 51, 52, 53]
 
-    it "encode :: PMMessage (PMKeepAlive)" $ do
+    it "encode :: PWMessage (PWKeepAlive)" $ do
         let msg = PWKeepAlive
             b = encode msg
         L.unpack b `shouldBe` [0x00]
 
-    it "encode :: PMMessage (PWChoke)" $ do
+    it "encode :: PWMessage (PWChoke)" $ do
         let msg = PWChoke
             b = encode msg
         L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x00]
 
-    it "encode :: PMMessage (PWUnchoke)" $ do
+    it "encode :: PWMessage (PWUnchoke)" $ do
         let msg = PWUnchoke
             b = encode msg
         L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x01]
 
-    it "encode :: PMMessage (PWInterested)" $ do
+    it "encode :: PWMessage (PWInterested)" $ do
         let msg = PWInterested
             b = encode msg
         L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x02]
 
-    it "encode :: PMMessage (PWNotInterested)" $ do
+    it "encode :: PWMessage (PWNotInterested)" $ do
         let msg = PWNotInterested
             b = encode msg
         L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x03]
 
-    it "encode :: PMMessage (PWHave)" $ do
+    it "encode :: PWMessage (PWHave)" $ do
         let msg = PWHave 4
             b = encode msg
         L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x05, 0x04, 0x00, 0x00, 0x00,
                                0x04]
 
-    it "encode :: PMMessage (PWRequest)" $ do
+    it "encode :: PWMessage (PWRequest)" $ do
         let msg = PWRequest 4 0 10
             b = encode msg
         L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x0d, 0x05, 0x00, 0x00, 0x00,
                                0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                0x0a]
 
-    it "encode :: PMMessage (PWPiece)" $ do
+    it "encode :: PWMessage (PWPiece)" $ do
         let msg = PWPiece 4 0 "very 'treta' piece for testing"
             b = encode msg
         L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x27, 0x07, 0x00, 0x00, 0x00,
@@ -91,7 +91,7 @@ specBinary = do
                                97, 39, 32, 112, 105, 101, 99, 101, 32, 102, 111,
                                114, 32, 116, 101, 115, 116, 105, 110, 103]
 
-    it "encode :: PMMessage (PWCancel)" $ do
+    it "encode :: PWMessage (PWCancel)" $ do
         let msg = PWCancel 10 3 20
             b = encode msg
         L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x0d, 0x08, 0x00, 0x00, 0x00,
