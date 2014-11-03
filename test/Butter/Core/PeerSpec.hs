@@ -42,9 +42,32 @@ specBinary = do
                                  0xec, 0x5d, 0x24, 0x50,
 
                                  66, 85, 84, 45, 48, 49, 50, 51, 52, 53, 54, 55,
-                                 56, 57, 48, 49, 50, 51, 52, 53
-                                 ]
+                                 56, 57, 48, 49, 50, 51, 52, 53]
 
+    it "encode :: PMMessage (PMKeepAlive)" $ do
+        let msg = PWKeepAlive
+            b = encode msg
+        (L.unpack b) `shouldBe` [0x00]
+
+    it "encode :: PMMessage (PWChoke)" $ do
+        let msg = PWChoke
+            b = encode msg
+        (L.unpack b) `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x00]
+
+    it "encode :: PMMessage (PWUnchoke)" $ do
+        let msg = PWUnchoke
+            b = encode msg
+        (L.unpack b) `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x01]
+
+    it "encode :: PMMessage (PWInterested)" $ do
+        let msg = PWInterested
+            b = encode msg
+        (L.unpack b) `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x02]
+
+    it "encode :: PMMessage (PWNotInterested)" $ do
+        let msg = PWNotInterested
+            b = encode msg
+        (L.unpack b) `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x03]
 
 spec :: Spec
 spec = describe "Binary instances" specBinary

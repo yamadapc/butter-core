@@ -155,7 +155,7 @@ instance Binary PeerWireMessage where
 -- |
 -- "Puts" an empty PeerWire message of ID @n@
 pwEmpty :: Word8 -> Put
-pwEmpty n = put (0 :: PWInteger) >> put n
+pwEmpty n = put (1 :: PWInteger) >> put n
 
 instance Binary Peer where
     get = Peer <$> getWord32le <*> getWord16le
