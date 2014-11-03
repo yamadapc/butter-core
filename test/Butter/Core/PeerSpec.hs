@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Butter.Core.PeerSpec where
 
+import Control.Arrow (first)
 import Data.Binary
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
@@ -8,6 +9,48 @@ import Network.Socket
 import Test.Hspec
 
 import Butter.Core.Peer
+
+peerWireExamples :: [(L.ByteString, PeerWireMessage)]
+peerWireExamples =
+    map (first L.pack) [ ([0x13, 0x42, 0x69, 0x74, 0x54, 0x6f, 0x72, 0x72,
+                           0x65, 0x6e, 0x74, 0x20, 0x70, 0x72, 0x6f, 0x74,
+                           0x6f, 0x63, 0x6f, 0x6c,
+
+                           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                           0x4d, 0x75, 0x34, 0x74, 0x42, 0x9d, 0x81, 0x7b,
+                           0x80, 0xff, 0x9e, 0x0c, 0x44, 0x1c, 0xa6, 0x60,
+                           0xec, 0x5d, 0x24, 0x50,
+
+                           66, 85, 84, 45, 48, 49, 50, 51, 52, 53, 54, 55,
+                           56, 57, 48, 49, 50, 51, 52, 53],
+                          PWHandshake (B.pack [0x4d, 0x75, 0x34, 0x74, 0x42,
+                                               0x9d, 0x81, 0x7b, 0x80, 0xff,
+                                               0x9e, 0x0c, 0x44, 0x1c, 0xa6,
+                                               0x60, 0xec, 0x5d, 0x24, 0x50])
+                                       "BUT-0123456789012345")
+                       , ([0x00], PWKeepAlive)
+                       , ([0x00, 0x00, 0x00, 0x01, 0x00], PWChoke)
+                       , ([0x00, 0x00, 0x00, 0x01, 0x01], PWUnchoke)
+                       , ([0x00, 0x00, 0x00, 0x01, 0x02], PWInterested)
+                       , ([0x00, 0x00, 0x00, 0x01, 0x03], PWNotInterested)
+                       , ([0x00, 0x00, 0x00, 0x05, 0x04, 0x00, 0x00, 0x00, 0x04],
+                          PWHave 4)
+                       , ([0x00, 0x00, 0x00, 0x0d, 0x06, 0x00, 0x00, 0x00, 0x04,
+                           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a],
+                          PWRequest 4 0 10)
+                       , ([0x00, 0x00, 0x00, 0x27, 0x07, 0x00, 0x00, 0x00,
+                           0x04, 0x00, 0x00, 0x00, 0x00,
+
+                           118, 101, 114, 121, 32, 39, 116, 114, 101, 116,
+                           97, 39, 32, 112, 105, 101, 99, 101, 32, 102, 111,
+                           114, 32, 116, 101, 115, 116, 105, 110, 103],
+                          PWPiece 4 0 "very 'treta' piece for testing")
+                       , ([0x00, 0x00, 0x00, 0x0d, 0x08, 0x00, 0x00, 0x00,
+                           0x0a, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
+                           0x14],
+                          PWCancel 10 3 20)
+                       ]
 
 specBinary :: Spec
 specBinary = do
@@ -24,79 +67,17 @@ specBinary = do
             addrs = map (\p -> SockAddrInet (PortNum (pPort p)) (pIp p)) ps
         map show addrs `shouldBe` [ "10.10.10.5:128", "100.56.58.99:28525" ]
 
-    it "encode :: PWMessage (PWHandshake) -> ByteString" $ do
-        let msg = PWHandshake (B.pack [0x4d, 0x75, 0x34, 0x74, 0x42, 0x9d, 0x81,
-                                       0x7b, 0x80, 0xff, 0x9e, 0x0c, 0x44, 0x1c,
-                                       0xa6, 0x60, 0xec, 0x5d, 0x24, 0x50])
-                              "BUT-0123456789012345"
-            b = encode msg
-        L.unpack b `shouldBe` [0x13, 0x42, 0x69, 0x74, 0x54, 0x6f, 0x72, 0x72,
-                               0x65, 0x6e, 0x74, 0x20, 0x70, 0x72, 0x6f, 0x74,
-                               0x6f, 0x63, 0x6f, 0x6c,
+    it "decode :: ByteString -> PWMessage" $ do
+        let testCase (input, expectedOutput) =
+                decode input `shouldBe` expectedOutput
 
-                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        mapM_ testCase peerWireExamples
 
-                               0x4d, 0x75, 0x34, 0x74, 0x42, 0x9d, 0x81, 0x7b,
-                               0x80, 0xff, 0x9e, 0x0c, 0x44, 0x1c, 0xa6, 0x60,
-                               0xec, 0x5d, 0x24, 0x50,
+    it "encode :: PWMessage -> ByteString" $ do
+        let testCase (expectedOutput, input) = 
+                encode input `shouldBe` expectedOutput
 
-                               66, 85, 84, 45, 48, 49, 50, 51, 52, 53, 54, 55,
-                               56, 57, 48, 49, 50, 51, 52, 53]
-
-    it "encode :: PWMessage (PWKeepAlive)" $ do
-        let msg = PWKeepAlive
-            b = encode msg
-        L.unpack b `shouldBe` [0x00]
-
-    it "encode :: PWMessage (PWChoke)" $ do
-        let msg = PWChoke
-            b = encode msg
-        L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x00]
-
-    it "encode :: PWMessage (PWUnchoke)" $ do
-        let msg = PWUnchoke
-            b = encode msg
-        L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x01]
-
-    it "encode :: PWMessage (PWInterested)" $ do
-        let msg = PWInterested
-            b = encode msg
-        L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x02]
-
-    it "encode :: PWMessage (PWNotInterested)" $ do
-        let msg = PWNotInterested
-            b = encode msg
-        L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x03]
-
-    it "encode :: PWMessage (PWHave)" $ do
-        let msg = PWHave 4
-            b = encode msg
-        L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x05, 0x04, 0x00, 0x00, 0x00,
-                               0x04]
-
-    it "encode :: PWMessage (PWRequest)" $ do
-        let msg = PWRequest 4 0 10
-            b = encode msg
-        L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x0d, 0x05, 0x00, 0x00, 0x00,
-                               0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                               0x0a]
-
-    it "encode :: PWMessage (PWPiece)" $ do
-        let msg = PWPiece 4 0 "very 'treta' piece for testing"
-            b = encode msg
-        L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x27, 0x07, 0x00, 0x00, 0x00,
-                               0x04, 0x00, 0x00, 0x00, 0x00,
-
-                               118, 101, 114, 121, 32, 39, 116, 114, 101, 116,
-                               97, 39, 32, 112, 105, 101, 99, 101, 32, 102, 111,
-                               114, 32, 116, 101, 115, 116, 105, 110, 103]
-
-    it "encode :: PWMessage (PWCancel)" $ do
-        let msg = PWCancel 10 3 20
-            b = encode msg
-        L.unpack b `shouldBe` [0x00, 0x00, 0x00, 0x0d, 0x08, 0x00, 0x00, 0x00,
-                               0x0a, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
-                               0x14]
+        mapM_ testCase peerWireExamples
 
 spec :: Spec
 spec = describe "Binary instances" specBinary
