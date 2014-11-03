@@ -14,6 +14,7 @@ module Butter.Core.Peer (
                         , PWBlock
                         , PWInteger
                         , connectToPeer
+                        , peerAddr
                         , sendMessage
                         -- ** Binary parsing functions
                         , getAll
@@ -35,7 +36,9 @@ import qualified Data.ByteString.Char8 as C (pack)
 import Data.Time (formatTime, getCurrentTime)
 import Data.Word (Word8, Word16, Word32)
 import GHC.Generics (Generic)
-import Network.Socket
+import Network.Socket (Family(..), HostAddress, PortNumber(..),
+                       SockAddr(..), Socket, SocketType(..), connect,
+                       defaultProtocol, socket)
 import Network.Socket.ByteString (sendAll)
 import System.Locale (defaultTimeLocale)
 import System.Posix.Process (getProcessID) -- sigh...
@@ -54,6 +57,25 @@ newPeerId = do
     t <- reverse <$> formatTime defaultTimeLocale "%s" <$> getCurrentTime
     pid <- getProcessID
     return $ C.pack $ take 20 $ "BU-" ++ show pid ++ t ++ repeat '0'
+
+-- |
+-- Connects to a peer and returns an open socket with it. Assumes we're
+-- inside of 'withSocketsDo'.
+connectToPeer :: Peer -> IO Socket
+connectToPeer peer = do
+    sock <- socket AF_INET Stream defaultProtocol
+    connect sock $ peerAddr peer
+    return sock
+
+-- |
+-- Gets the SockAddr corresponding to a certain peer
+peerAddr :: Peer -> SockAddr
+peerAddr Peer{..} = SockAddrInet (PortNum pPort) pIp
+
+-- |
+-- Sends a peerwire message through a socket
+sendMessage :: Socket -> PeerWireMessage -> IO ()
+sendMessage s m = sendAll s (encodeS m)
 
 -- |
 -- The Bittorrent protocol name, used as a constant in handshake pw messages
@@ -93,21 +115,6 @@ data PeerWireMessage = PWHandshake { pwHandshakeInfoHash :: !B.ByteString
                                 }
                      -- PWPort
   deriving(Eq, Ord, Show)
-
--- |
--- Connects to a peer and returns an open socket with it. Assumes we're
--- inside of 'withSocketsDo'.
-connectToPeer :: Peer -> IO Socket
-connectToPeer Peer{..} = do
-    sock <- socket AF_INET Stream defaultProtocol
-    connect sock sockaddr
-    return sock
-  where sockaddr = SockAddrInet (PortNum pPort) pIp
-
--- |
--- Sends a peerwire message through a socket
-sendMessage :: Socket -> PeerWireMessage -> IO ()
-sendMessage s m = sendAll s (encodeS m)
 
 instance Binary PeerWireMessage where
     get = do
