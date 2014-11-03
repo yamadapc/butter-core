@@ -33,7 +33,6 @@ import Data.Binary (Binary, encode, decode, get, put)
 import Data.Binary.Get (Get, isEmpty, getByteString, getWord16le, getWord32le)
 import Data.Binary.Put (Put, putWord16le, putWord32le)
 import qualified Data.ByteString as B (ByteString, length, unpack)
-import qualified Data.ByteString.Lazy as L (ByteString)
 import qualified Data.ByteString.Char8 as C (pack)
 import Data.Time (formatTime, getCurrentTime)
 import Data.Word (Word8, Word16, Word32)
@@ -67,7 +66,7 @@ protocolNameLength :: Word8
 protocolNameLength = fromIntegral $ B.length protocolName
 
 type PWInteger = Word32
-type PWBlock = L.ByteString
+type PWBlock = B.ByteString
 
 -- |
 -- Represents a message in the PeerWire protocol
@@ -86,11 +85,14 @@ data PeerWireMessage = PWHandshake { pwHandshakeInfoHash :: !B.ByteString
                                  , pwRequestBegin  :: !PWInteger
                                  , pwRequestLength :: !PWInteger
                                  }
-                     | PWPiece { pwPieceIndex  :: !PWInteger
-                               , pwPieceCancel :: !PWInteger
-                               , pwPieceBlock  :: !PWBlock
+                     | PWPiece { pwPieceIndex :: !PWInteger
+                               , pwPieceBegin :: !PWInteger
+                               , pwPieceBlock :: !PWBlock
                                }
-                     | PWCancel
+                     | PWCancel { pwCancelIndex   :: !PWInteger
+                                , pwCancelBegin  :: !PWInteger
+                                , pwCancelLength :: !PWInteger
+                                }
                      -- Temporary cheat:
                      | PWBinary !B.ByteString
                      -- PWPort
@@ -150,12 +152,44 @@ instance Binary PeerWireMessage where
     put PWUnchoke       = pwEmpty 1
     put PWInterested    = pwEmpty 2
     put PWNotInterested = pwEmpty 3
-    put _               = undefined
+
+    put PWHave{..} = do
+        put (5 :: PWInteger)
+        putPWId 4
+        put pwHaveIndex
+
+    put PWRequest{..} = do
+        put (13 :: PWInteger)
+        putPWId 5
+        put pwRequestIndex
+        put pwRequestBegin
+        put pwRequestLength
+
+    put PWPiece{..} = do
+        put (9 + fromIntegral (B.length pwPieceBlock) :: PWInteger)
+        putPWId 7
+        put pwPieceIndex
+        put pwPieceBegin
+        putAll $ B.unpack pwPieceBlock
+
+    put PWCancel{..} = do
+        put (13 :: PWInteger)
+        putPWId 8
+        put pwCancelIndex
+        put pwCancelBegin
+        put pwCancelLength
+
+    put _ = undefined
 
 -- |
 -- "Puts" an empty PeerWire message of ID @n@
 pwEmpty :: Word8 -> Put
-pwEmpty n = put (1 :: PWInteger) >> put n
+pwEmpty n = put (1 :: PWInteger) >> putPWId n
+
+-- |
+-- Puts the message id
+putPWId :: Word8 -> Put
+putPWId = put
 
 instance Binary Peer where
     get = Peer <$> getWord32le <*> getWord16le

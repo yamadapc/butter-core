@@ -69,5 +69,36 @@ specBinary = do
             b = encode msg
         (L.unpack b) `shouldBe` [0x00, 0x00, 0x00, 0x01, 0x03]
 
+    it "encode :: PMMessage (PWHave)" $ do
+        let msg = PWHave 4
+            b = encode msg
+        (L.unpack b) `shouldBe` [0x00, 0x00, 0x00, 0x05, 0x04, 0x00, 0x00, 0x00,
+                                 0x04]
+
+    it "encode :: PMMessage (PWRequest)" $ do
+        let msg = PWRequest 4 0 10
+            b = encode msg
+        (L.unpack b) `shouldBe` [0x00, 0x00, 0x00, 0x0d, 0x05, 0x00, 0x00, 0x00,
+                                 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                 0x0a]
+
+    it "encode :: PMMessage (PWPiece)" $ do
+        let msg = PWPiece 4 0 "very 'treta' piece for testing"
+            b = encode msg
+        (L.unpack b) `shouldBe` [0x00, 0x00, 0x00, 0x27, 0x07, 0x00, 0x00, 0x00,
+                                 0x04, 0x00, 0x00, 0x00, 0x00,
+
+                                 118, 101, 114, 121, 32, 39, 116, 114, 101, 116,
+                                 97, 39, 32, 112, 105, 101, 99, 101, 32, 102,
+                                 111, 114, 32, 116, 101, 115, 116, 105, 110,
+                                 103]
+
+    it "encode :: PMMessage (PWCancel)" $ do
+        let msg = PWCancel 10 3 20
+            b = encode msg
+        (L.unpack b) `shouldBe` [0x00, 0x00, 0x00, 0x0d, 0x08, 0x00, 0x00, 0x00,
+                                 0x0a, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
+                                 0x14]
+
 spec :: Spec
 spec = describe "Binary instances" specBinary
