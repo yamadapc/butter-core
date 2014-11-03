@@ -32,7 +32,7 @@ import Data.Binary (Binary, encode, decode, get, put)
 
 import Data.Binary.Get (Get, isEmpty, getByteString, getWord16le, getWord32le)
 import Data.Binary.Put (Put, putWord16le, putWord32le)
-import qualified Data.ByteString as B (ByteString, length)
+import qualified Data.ByteString as B (ByteString, length, unpack)
 import qualified Data.ByteString.Lazy as L (ByteString)
 import qualified Data.ByteString.Char8 as C (pack)
 import Data.Time (formatTime, getCurrentTime)
@@ -63,7 +63,7 @@ newPeerId = do
 protocolName :: B.ByteString
 protocolName = "BitTorrent protocol"
 
-protocolNameLength :: PWInteger
+protocolNameLength :: Word8
 protocolNameLength = fromIntegral $ B.length protocolName
 
 type PWInteger = Word32
@@ -140,10 +140,10 @@ instance Binary PeerWireMessage where
 
     put PWHandshake{..} = do
         put protocolNameLength
-        put protocolName
-        putAll ([0, 0, 0, 0, 0, 0, 0, 0] :: [PWInteger])
-        put pwHandshakeInfoHash
-        put pwHandshakePeerId
+        putAll $ B.unpack protocolName
+        putAll ([0, 0, 0, 0, 0, 0, 0, 0] :: [Word8])
+        putAll $ B.unpack pwHandshakeInfoHash
+        putAll $ B.unpack pwHandshakePeerId
 
     put PWKeepAlive     = put (0 :: Word8)
     put PWChoke         = pwEmpty 0
