@@ -27,12 +27,10 @@ module Butter.Core.Peer (
 
 import Butter.Core.Util (encodeS)
 import Control.Applicative ((<$>), (<*>))
-
 import Data.Binary (Binary, encode, decode, get, put)
-
 import Data.Binary.Get (Get, isEmpty, getByteString, getWord16le, getWord32le)
 import Data.Binary.Put (Put, putWord16le, putWord32le)
-import qualified Data.ByteString as B (ByteString, length, unpack)
+import qualified Data.ByteString as B (ByteString, length, pack, unpack)
 import qualified Data.ByteString.Char8 as C (pack)
 import Data.Time (formatTime, getCurrentTime)
 import Data.Word (Word8, Word16, Word32)
@@ -96,6 +94,7 @@ data PeerWireMessage = PWHandshake { pwHandshakeInfoHash :: !B.ByteString
                      -- Temporary cheat:
                      | PWBinary !B.ByteString
                      -- PWPort
+  deriving(Eq, Ord, Show)
 
 -- |
 -- Connects to a peer and returns an open socket with it. Assumes we're
@@ -114,31 +113,43 @@ sendMessage s m = sendAll s (encodeS m)
 
 instance Binary PeerWireMessage where
     get = do
-        l <- get :: Get PWInteger
-        bs <- getByteString $ fromIntegral l
-        return $ PWBinary bs
-        --if l /= 0
-            --then do
-                --t <- get :: Get Word8
-                --case t of
-                    --0 -> return PWChoke
-                    --1 -> return PWUnchoke
-                    --2 -> return PWInterested
-                    --3 -> return PWNotInterested
-                    --4 -> do
-                        --i <- get
-                        --return $ PWHave i
-                    --5 -> do
-                        --r <- getByteString l
-                        --PWBitfield r
-                    --6 ->
-                        --PWRequest
-                    --7 ->
-                        --PWPiece
-                    --8 ->
-                        --PWCancel
-                    --_ -> fail "Invalid message id."
-            --else return PWKeepAlive
+        l <- getMessageLength
+        if l /= 0
+            then do
+                t <- get :: Get Word8
+                case t of
+                    0 -> return PWChoke
+                    1 -> return PWUnchoke
+                    2 -> return PWInterested
+                    3 -> return PWNotInterested
+                    4 -> do
+                        i <- get
+                        return $ PWHave i
+                    5 -> do
+                        r <- getByteString (fromIntegral l)
+                        return $ PWBitfield r
+                    6 -> do
+                        i <- get
+                        b <- get
+                        le <- get
+                        return $ PWRequest i b le
+                    7 -> do
+                        i <- get
+                        b <- get
+                        r <- getMany (l - 1 - 8)
+                        return $ PWPiece i b (B.pack r)
+                    8 -> do
+                        i <- get
+                        b <- get
+                        le <- get
+                        return $ PWCancel i b le
+                    _ -> do
+                        _ <- getMany 15 :: Get [Word8]
+                        _ <- getMany 8  :: Get [Word8]
+                        h <- getMany 20 :: Get [Word8]
+                        p <- getMany 20 :: Get [Word8]
+                        return $ PWHandshake (B.pack h) (B.pack p)
+            else return PWKeepAlive
 
     put PWHandshake{..} = do
         put protocolNameLength
@@ -147,7 +158,7 @@ instance Binary PeerWireMessage where
         putAll $ B.unpack pwHandshakeInfoHash
         putAll $ B.unpack pwHandshakePeerId
 
-    put PWKeepAlive     = put (0 :: Word8)
+    put PWKeepAlive     = put (0 :: PWInteger)
     put PWChoke         = pwEmpty 0
     put PWUnchoke       = pwEmpty 1
     put PWInterested    = pwEmpty 2
@@ -160,7 +171,7 @@ instance Binary PeerWireMessage where
 
     put PWRequest{..} = do
         put (13 :: PWInteger)
-        putPWId 5
+        putPWId 6
         put pwRequestIndex
         put pwRequestBegin
         put pwRequestLength
@@ -180,6 +191,9 @@ instance Binary PeerWireMessage where
         put pwCancelLength
 
     put _ = undefined
+
+getMessageLength :: Get PWInteger
+getMessageLength = get
 
 -- |
 -- "Puts" an empty PeerWire message of ID @n@
@@ -213,3 +227,8 @@ getAll = go []
   where go acc = get >>= \x -> isEmpty >>= \case
             True  -> return $ reverse (x:acc)
             False -> seq x $ (x:) <$> getAll
+
+getMany :: (Binary a) => Word32 -> Get [a]
+getMany = go []
+  where go acc 0   = return $ reverse acc
+        go acc cnt = get >>= \x -> seq x $ (x:) <$> go acc (cnt - 1)
