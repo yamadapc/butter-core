@@ -29,7 +29,8 @@ module Butter.Core.Peer (
 import Butter.Core.Util (encodeS)
 import Control.Applicative ((<$>), (<*>))
 import Data.Binary (Binary, encode, decode, get, put)
-import Data.Binary.Get (Get, isEmpty, getByteString, getWord16le, getWord32le)
+import Data.Binary.Get (Get, isEmpty, getByteString, getWord16le, getWord32le,
+                        skip)
 import Data.Binary.Put (Put, putByteString, putWord16le, putWord32le)
 import qualified Data.ByteString as B (ByteString, length)
 import qualified Data.ByteString.Char8 as C (pack)
@@ -138,8 +139,8 @@ instance Binary PeerWireMessage where
                                   <*> get
                                   <*> get
                     _ -> do
-                        _ <- getByteString 15
-                        _ <- getByteString 8 -- `reserved` protocol field
+                        _ <- skip 15
+                        _ <- skip 8 -- `reserved` protocol field
                         PWHandshake <$> getByteString 20
                                     <*> getByteString 20
             else return PWKeepAlive
