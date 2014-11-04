@@ -37,6 +37,7 @@ library
     exposed-modules:
         Butter.Core
         Butter.Core.MetaInfo
+        Butter.Core.Peer
         Butter.Core.PeerWire
         Butter.Core.Torrent
         Butter.Core.Tracker.Client
