@@ -15,6 +15,7 @@ module Butter.Core.Peer (
                         , PWInteger
                         , connectToPeer
                         , peerAddr
+                        , receiveMessage
                         , sendMessage
                         -- ** Binary parsing functions
                         , getAll
@@ -28,12 +29,15 @@ module Butter.Core.Peer (
 
 import Butter.Core.MetaInfo (InfoHash)
 import Control.Applicative ((<$>), (<*>))
+import Control.Monad.Catch (MonadThrow)
 import Data.Binary (Binary, encode, decode, get, put)
 import Data.Binary.Get (Get, isEmpty, getByteString, getWord16le, getWord32le,
                         skip)
 import Data.Binary.Put (Put, putByteString, putWord16le, putWord32le)
 import qualified Data.ByteString as B (ByteString, length)
 import qualified Data.ByteString.Char8 as C (pack)
+import Data.Conduit (ResumableSource, Source, ($$+))
+import Data.Conduit.Serialization.Binary (sinkGet)
 import Data.Time (formatTime, getCurrentTime)
 import Data.Word (Word8, Word16, Word32)
 import GHC.Generics (Generic)
@@ -67,6 +71,14 @@ connectToPeer peer = do
     sock <- socket AF_INET Stream defaultProtocol
     connect sock $ peerAddr peer
     return sock
+
+-- |
+-- Consumes a PeerWireMessage from some `ByteString` conduit `Source` and
+-- returns it along with the resumable unconsumed part of the source.
+receiveMessage :: MonadThrow m
+               => Source m B.ByteString
+               -> m (ResumableSource m B.ByteString, PeerWireMessage)
+receiveMessage s = s $$+ sinkGet (get :: Get PeerWireMessage)
 
 -- |
 -- Gets the SockAddr corresponding to a certain peer
