@@ -2,9 +2,11 @@
 module Butter.Core.PeerSpec where
 
 import Control.Arrow (first)
+import Control.Exception (AssertionFailed(..))
 import Data.Binary
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
+import qualified Data.Conduit as C
 import Network.Socket
 import Test.Hspec
 
@@ -80,4 +82,42 @@ specBinary = do
         mapM_ testCase peerWireExamples
 
 spec :: Spec
-spec = describe "Binary instances" specBinary
+spec = do
+    describe "Binary instances" specBinary
+
+    describe "receiveHandshake" $ do
+        it "yields a peerwire handshake if present" $ do
+            let tc = head peerWireExamples
+                source = C.yield $ L.toStrict $ L.concat $
+                                                map fst peerWireExamples
+
+            (_, pw) <- receiveHandshake source
+            pw `shouldBe` snd tc
+
+        it "fails if any other message is found" $ do
+            let source = C.yield $ L.toStrict $ L.concat $
+                                                map fst (tail peerWireExamples)
+
+            receiveHandshake source `shouldThrow` assertionFailure
+
+    describe "receiveMessage" $ do
+        it "works if the `Source` conduit is completelly consumed" $ do
+            let handshakeTc = head peerWireExamples
+                source = C.newResumableSource $ C.yield $ L.toStrict $
+                                                          fst handshakeTc
+
+            (_, pw) <- receiveMessage source
+            pw `shouldBe` snd handshakeTc
+
+        it "yields back a resumable source when messages are concatenated" $ do
+            let msgs = take 2 peerWireExamples
+                source = C.newResumableSource (C.yield $ L.toStrict $ L.concat $
+                                               map fst msgs)
+
+            (rs, pw) <- receiveMessage source
+            pw `shouldBe` snd (head msgs)
+            (_, pw') <- receiveMessage rs
+            pw' `shouldBe` snd (last msgs)
+
+  where assertionFailure :: AssertionFailed -> Bool
+        assertionFailure _ = True

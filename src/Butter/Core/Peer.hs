@@ -15,6 +15,7 @@ module Butter.Core.Peer (
                         , PWInteger
                         , connectToPeer
                         , peerAddr
+                        , receiveHandshake
                         , receiveMessage
                         , sendMessage
                         -- ** Binary parsing functions
@@ -29,14 +30,15 @@ module Butter.Core.Peer (
 
 import Butter.Core.MetaInfo (InfoHash)
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad.Catch (MonadThrow)
+import Control.Exception (AssertionFailed(..))
+import Control.Monad.Catch (MonadThrow, throwM)
 import Data.Binary (Binary, encode, decode, get, put)
 import Data.Binary.Get (Get, isEmpty, getByteString, getWord16le, getWord32le,
                         skip)
 import Data.Binary.Put (Put, putByteString, putWord16le, putWord32le)
 import qualified Data.ByteString as B (ByteString, length)
 import qualified Data.ByteString.Char8 as C (pack)
-import Data.Conduit (ResumableSource, Source, ($$+))
+import Data.Conduit (ResumableSource, Source, ($$+), ($$++))
 import Data.Conduit.Serialization.Binary (sinkGet)
 import Data.Time (formatTime, getCurrentTime)
 import Data.Word (Word8, Word16, Word32)
@@ -73,12 +75,29 @@ connectToPeer peer = do
     return sock
 
 -- |
--- Consumes a PeerWireMessage from some `ByteString` conduit `Source` and
--- returns it along with the resumable unconsumed part of the source.
+-- Consumes a PWHandshake from some 'ByteString' conduit 'Source' and
+-- returns it along with the resumable unconsumed part of the source. Fails
+-- if the message received isn't a handshake.
+--
+-- This function isn't strictly necessary given
+-- @receiveMessage . newResumableSource@ and the appropriate assertion.
+receiveHandshake :: MonadThrow m
+                 => Source m B.ByteString
+                 -> m (ResumableSource m B.ByteString, PeerWireMessage)
+receiveHandshake s = do
+    (rs, pw) <- s $$+ sinkGet (get :: Get PeerWireMessage)
+    case pw of
+        (PWHandshake _ _) -> return (rs, pw)
+        _ -> throwM $ AssertionFailed ("Expected handshake, but got: " ++ show pw)
+
+-- |
+-- Consumes a PeerWireMessage from some 'ByteString' conduit
+-- 'ResumableSource' and returns it along with the resumable unconsumed
+-- part of the source.
 receiveMessage :: MonadThrow m
-               => Source m B.ByteString
+               => ResumableSource m B.ByteString
                -> m (ResumableSource m B.ByteString, PeerWireMessage)
-receiveMessage s = s $$+ sinkGet (get :: Get PeerWireMessage)
+receiveMessage s = s $$++ sinkGet (get :: Get PeerWireMessage)
 
 -- |
 -- Gets the SockAddr corresponding to a certain peer
