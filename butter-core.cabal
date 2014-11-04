@@ -22,6 +22,7 @@ library
         exceptions >=0.6 && <0.7,
         binary >=0.7 && <0.8,
         binary-conduit >=1 && <2,
+        containers >=0.5 && <0.6,
         stm >=2.4 && <3,
         base >=4.7 && <4.8,
         cryptohash >=0.11 && <0.12,
@@ -39,6 +40,7 @@ library
         Butter.Core.MetaInfo
         Butter.Core.Peer
         Butter.Core.PeerWire
+        Butter.Core.PeerManager
         Butter.Core.Torrent
         Butter.Core.Tracker.Client
         Butter.Core.Util
@@ -53,6 +55,7 @@ test-suite hspec
         exceptions >=0.6 && <0.7,
         binary >=0.7 && <0.8,
         binary-conduit >=1 && <2,
+        containers >=0.5 && <0.6,
         stm >=2.4 && <3,
         base >=4 && <5,
         base16-bytestring >=0.1 && <0.2,

@@ -53,18 +53,27 @@ data PeerEvent = ConnectionClosed
 createPeer :: Chan PeerEvent -- ^ The channel events will be written to
            -> PeerAddr       -- ^ A peer address, obtained with PeerWire.decode
            -> IO Peer
-createPeer writechan addr = connectToPeer addr >>= startPeer writechan
+createPeer writechan addr = do
+    sock <- connectToPeer addr
+    startPeer writechan sock Nothing
 
 -- |
 -- The same as 'createPeer' but receives an already connected 'Socket'.
 -- This is to be used when accepting peer connections, rather than starting
 -- them. It assumes that the client's handshake has already been sent.
-startPeer :: Chan PeerEvent -> Socket -> IO Peer
-startPeer writechan sock = do
-    let src = sourceSocket sock
-    (rsrc, PWHandshake{..}) <- receiveHandshake src
-                                   :: IO (ResumableSource IO B.ByteString,
-                                          PeerWireMessage)
+--
+-- The third parameter will make this function skip the handshake if set to
+-- the received handshake information.
+startPeer :: Chan PeerEvent
+          -> Socket
+          -> Maybe (ResumableSource IO B.ByteString, PeerWireMessage)
+          -> IO Peer
+startPeer writechan sock mInfo = do
+    (rsrc, PWHandshake{..}) <- case mInfo of
+        Just info -> return info
+        Nothing -> let src = sourceSocket sock in
+            receiveHandshake src :: IO (ResumableSource IO B.ByteString,
+                                        PeerWireMessage)
 
     (rsrcV, ic, ac, ii, ai, ps) <- atomically $ (,,,,,)
                                        <$> newTVar rsrc
