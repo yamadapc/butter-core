@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Butter.Core.PeerSpec where
+module Butter.Core.PeerWireSpec where
 
 import Control.Arrow (first)
 import Control.Exception (AssertionFailed(..))
@@ -10,7 +10,7 @@ import qualified Data.Conduit as C
 import Network.Socket
 import Test.Hspec
 
-import Butter.Core.Peer
+import Butter.Core.PeerWire
 
 peerWireExamples :: [(L.ByteString, PeerWireMessage)]
 peerWireExamples =
@@ -59,14 +59,12 @@ specBinary = do
     -- Peer decoding examples stolen from `compact2string` npm module's
     -- tests
     it "decode :: ByteString -> Peer" $ do
-        let p = decode (L.pack [0x0A, 0x0A, 0x0A, 0x05, 0xFF, 0x80]) :: Peer
-            addr = SockAddrInet (PortNum (pPort p)) (pIp p)
+        let addr = decode (L.pack [0x0A, 0x0A, 0x0A, 0x05, 0xFF, 0x80]) :: PeerAddr
         show addr `shouldBe` "10.10.10.5:65408"
 
     it "decode :: ByteString -> [Peer]" $ do
-        let ps = decode (L.pack [0x0A, 0x0A, 0x0A, 0x05, 0x00, 0x80, 0x64, 0x38,
-                                 0x3a, 0x63, 0x6f, 0x6d]) :: [Peer]
-            addrs = map (\p -> SockAddrInet (PortNum (pPort p)) (pIp p)) ps
+        let addrs = decode (L.pack [0x0A, 0x0A, 0x0A, 0x05, 0x00, 0x80,
+                                    0x64, 0x38, 0x3a, 0x63, 0x6f, 0x6d]) :: [PeerAddr]
         map show addrs `shouldBe` [ "10.10.10.5:128", "100.56.58.99:28525" ]
 
     it "decode :: ByteString -> PWMessage" $ do

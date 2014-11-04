@@ -4,28 +4,27 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-module Butter.Core.Peer (
-                        -- ** Peer data types
-                          Peer(..)
-                        , PeerId
-                        , newPeerId
-                        -- ** Peer Wire Protocol
-                        , PeerWireMessage(..)
-                        , PWBlock
-                        , PWInteger
-                        , connectToPeer
-                        , peerAddr
-                        , receiveHandshake
-                        , receiveMessage
-                        , sendMessage
-                        -- ** Binary parsing functions
-                        , getAll
-                        , putAll
-                        -- ** Exported from `Data.Binary`
-                        , Binary(..)
-                        , encode
-                        , decode
-                        )
+module Butter.Core.PeerWire (
+                            -- ** PeerAddr data types
+                              PeerAddr(..)
+                            , PeerId
+                            , newPeerId
+                            -- ** Peer Wire Protocol
+                            , PeerWireMessage(..)
+                            , PWBlock
+                            , PWInteger
+                            , connectToPeer
+                            , receiveHandshake
+                            , receiveMessage
+                            , sendMessage
+                            -- ** Binary parsing functions
+                            , getAll
+                            , putAll
+                            -- ** Exported from `Data.Binary`
+                            , Binary(..)
+                            , encode
+                            , decode
+                            )
   where
 
 import Butter.Core.MetaInfo (InfoHash)
@@ -41,19 +40,21 @@ import qualified Data.ByteString.Char8 as C (pack)
 import Data.Conduit (ResumableSource, Source, ($$+), ($$++))
 import Data.Conduit.Serialization.Binary (sinkGet)
 import Data.Time (formatTime, getCurrentTime)
-import Data.Word (Word8, Word16, Word32)
+import Data.Word (Word8, Word32)
 import GHC.Generics (Generic)
-import Network.Socket (Family(..), HostAddress, PortNumber(..),
-                       SockAddr(..), Socket, SocketType(..), connect,
-                       defaultProtocol, socket)
+import Network.Socket (Family(..), PortNumber(..), SockAddr(..), Socket,
+                       SocketType(..), connect, defaultProtocol, socket)
 import Network.Socket.ByteString.Lazy (sendAll)
 import System.Locale (defaultTimeLocale)
 import System.Posix.Process (getProcessID) -- sigh...
 
-data Peer = Peer { pIp   :: HostAddress -- type HostAddress = Word32
-                 , pPort :: Word16      -- newtype PortNumber = PortNum Word16
-                 }
-  deriving(Generic, Eq, Ord, Show)
+-- |
+-- An abstraction wrapper for peer socket addresses
+newtype PeerAddr = PeerAddr SockAddr
+  deriving(Generic, Eq, Ord)
+
+instance Show PeerAddr where
+    show (PeerAddr x) = show x
 
 type PeerId = B.ByteString
 
@@ -68,10 +69,10 @@ newPeerId = do
 -- |
 -- Connects to a peer and returns an open socket with it. Assumes we're
 -- inside of 'withSocketsDo'.
-connectToPeer :: Peer -> IO Socket
-connectToPeer peer = do
+connectToPeer :: PeerAddr -> IO Socket
+connectToPeer (PeerAddr addr) = do
     sock <- socket AF_INET Stream defaultProtocol
-    connect sock $ peerAddr peer
+    connect sock addr
     return sock
 
 -- |
@@ -98,11 +99,6 @@ receiveMessage :: MonadThrow m
                => ResumableSource m B.ByteString
                -> m (ResumableSource m B.ByteString, PeerWireMessage)
 receiveMessage s = s $$++ sinkGet (get :: Get PeerWireMessage)
-
--- |
--- Gets the SockAddr corresponding to a certain peer
-peerAddr :: Peer -> SockAddr
-peerAddr Peer{..} = SockAddrInet (PortNum pPort) pIp
 
 -- |
 -- Sends a peerwire message through a socket
@@ -232,11 +228,17 @@ pwEmpty n = put (1 :: PWInteger) >> putPWId n
 putPWId :: Word8 -> Put
 putPWId = put
 
-instance Binary Peer where
-    get = Peer <$> getWord32le <*> getWord16le
-    put Peer{..} = putWord32le pIp >> putWord16le pPort
+instance Binary PeerAddr where
+    get = do
+        ip <- getWord32le
+        pn <- getWord16le
+        return $ PeerAddr $ SockAddrInet (PortNum pn) ip
 
-instance Binary [Peer] where
+    put (PeerAddr (SockAddrInet (PortNum pPort) pIp)) =
+        putWord32le pIp >> putWord16le pPort
+    put _ = fail "IPv6 is not currently supported."
+
+instance Binary [PeerAddr] where
     get = getAll
     put = putAll
 

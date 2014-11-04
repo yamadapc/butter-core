@@ -17,7 +17,7 @@
 module Butter.Core.Tracker.Client where
 
 import Butter.Core.MetaInfo (FileInfo(..), MetaInfo(..), fromBEncode, toBEncode)
-import Butter.Core.Peer as Peer (Peer, PeerId, decode)
+import Butter.Core.PeerWire as Peer (PeerAddr, PeerId, decode)
 import Butter.Core.Torrent
 import Butter.Core.Util (urlEncodeVars)
 import Control.Concurrent (Chan, forkIO, newChan, threadDelay, writeList2Chan)
@@ -66,10 +66,10 @@ getPeersChan :: Manager  -- ^ A HTTP manager
              -> PeerId   -- ^ The local peer's id
              -> Word16   -- ^ The port the local peer is listening at
              -> MetaInfo -- ^ A parsed torrent metainfo
-             -> IO (TVar TorrentStatus, Chan Peer)
+             -> IO (TVar TorrentStatus, Chan PeerAddr)
 getPeersChan manager clientId p MetaInfo{..} = do
     tsVar <- newTStatusTVar
-    c <- newChan :: IO (Chan Peer)
+    c <- newChan :: IO (Chan PeerAddr)
     _ <- forkIO $ do
         ts <- queryTracker' "start" 0 0
         updateChanAndWait ts c
