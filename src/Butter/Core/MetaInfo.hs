@@ -22,6 +22,7 @@
 module Butter.Core.MetaInfo ( FileInfo(..)
                             , FileNode(..)
                             , MetaInfo(..)
+                            , InfoHash
                             , fromBEncode
                             , readMetaInfoFile
                             , toBEncode
@@ -35,6 +36,8 @@ import qualified Crypto.Hash.SHA1 as SHA1 (hashlazy)
 import Data.BEncode as BE
 import Data.Typeable (Typeable)
 import qualified Data.ByteString as B (ByteString, readFile)
+
+type InfoHash = B.ByteString
 
 -- |
 -- Represents a parsed @.torrent@ file. Should be used as a middle-man between
@@ -84,7 +87,7 @@ data FileInfo = FileInfo { fiFiles       :: !(Maybe [FileNode])
                          , fiPieceLength :: !Integer
                          , fiPieces      :: !B.ByteString
                          , fiPrivate     :: !(Maybe Bool)
-                         , fiHash        :: !B.ByteString
+                         , fiHash        :: !InfoHash
                          }
   deriving(Eq, Typeable, Show)
 

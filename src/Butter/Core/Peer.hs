@@ -26,7 +26,7 @@ module Butter.Core.Peer (
                         )
   where
 
-import Butter.Core.Util (encodeS)
+import Butter.Core.MetaInfo (InfoHash)
 import Control.Applicative ((<$>), (<*>))
 import Data.Binary (Binary, encode, decode, get, put)
 import Data.Binary.Get (Get, isEmpty, getByteString, getWord16le, getWord32le,
@@ -40,7 +40,7 @@ import GHC.Generics (Generic)
 import Network.Socket (Family(..), HostAddress, PortNumber(..),
                        SockAddr(..), Socket, SocketType(..), connect,
                        defaultProtocol, socket)
-import Network.Socket.ByteString (sendAll)
+import Network.Socket.ByteString.Lazy (sendAll)
 import System.Locale (defaultTimeLocale)
 import System.Posix.Process (getProcessID) -- sigh...
 
@@ -76,7 +76,7 @@ peerAddr Peer{..} = SockAddrInet (PortNum pPort) pIp
 -- |
 -- Sends a peerwire message through a socket
 sendMessage :: Socket -> PeerWireMessage -> IO ()
-sendMessage s m = sendAll s (encodeS m)
+sendMessage s m = sendAll s $ encode m
 
 -- |
 -- The Bittorrent protocol name, used as a constant in handshake pw messages
@@ -91,8 +91,8 @@ type PWBlock = B.ByteString
 
 -- |
 -- Represents a message in the PeerWire protocol
-data PeerWireMessage = PWHandshake { pwHandshakeInfoHash :: !B.ByteString
-                                   , pwHandshakePeerId   :: !B.ByteString
+data PeerWireMessage = PWHandshake { pwHandshakeInfoHash :: !InfoHash
+                                   , pwHandshakePeerId   :: !PeerId
                                    }
                      | PWKeepAlive
                      | PWChoke
@@ -186,6 +186,8 @@ instance Binary PeerWireMessage where
 
     put _ = undefined
 
+-- |
+-- Gets a peerwire message's length
 getMessageLength :: Get PWInteger
 getMessageLength = get
 
