@@ -2,10 +2,14 @@
 -- General shared logic.
 --
 -- NOTE
--- This module is to be replaced with a complete better implementation of
--- an URL encoding library, which is currently being worked on.
+-- Part of this module is to be replaced with a complete better
+-- implementation of an URL encoding library, which is currently being
+-- worked on.
 module Butter.Core.Util where
 
+import Control.Concurrent.STM (STM, TBQueue, atomically, isFullTBQueue,
+                               writeTBQueue)
+import Control.Monad (unless)
 import Data.Char (ord)
 import Data.List (partition)
 import Numeric (showHex)
@@ -37,3 +41,19 @@ urlEncodeVars ((n,v):t) =
        where urlEncodeRest [] = []
              urlEncodeRest diff = '&' : urlEncodeVars diff
 urlEncodeVars [] = []
+
+-- |
+-- IO Version of 'writeList2TBQueue'
+writeList2TBQueueIO :: TBQueue a -> [a] -> IO ()
+writeList2TBQueueIO q xs = atomically $ writeList2TBQueue q xs
+
+-- |
+-- Tries to write all elements in a list to a TBQueue and fails silently if
+-- its full.
+-- Never blocks.
+writeList2TBQueue :: TBQueue a -> [a] -> STM ()
+writeList2TBQueue _ [] = return ()
+writeList2TBQueue q (x:xs) = do
+    f <- isFullTBQueue q
+    unless f $ writeTBQueue q x >>
+               writeList2TBQueue q xs
