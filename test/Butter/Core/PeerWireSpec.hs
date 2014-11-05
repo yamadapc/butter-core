@@ -9,6 +9,8 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.Conduit as C
 import Network.Socket
 import Test.Hspec
+import Test.QuickCheck
+import Test.QuickCheck.Monadic
 
 import Butter.Core.PeerWire
 
@@ -82,6 +84,12 @@ specBinary = do
 spec :: Spec
 spec = do
     describe "Binary instances" specBinary
+
+    describe "newPeerId" $ do
+        it "yields a 20 byte `ByteString`" $
+            monadicIO $ do
+                x <- run $ newPeerId
+                assert $ B.length x == 20
 
     describe "receiveHandshake" $ do
         it "yields a peerwire handshake if present" $ do

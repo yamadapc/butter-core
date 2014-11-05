@@ -61,6 +61,7 @@ test-suite hspec
         base16-bytestring >=0.1 && <0.2,
         cryptohash >=0.11 && <0.12,
         hspec >=1.11 && <2,
+        QuickCheck >=2.6 && <3,
         bencoding >=0.4 && <0.5,
         bytestring >=0.10 && <0.11,
         network >=2.4 && <2.5,
