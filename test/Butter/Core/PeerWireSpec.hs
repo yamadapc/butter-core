@@ -85,10 +85,10 @@ spec :: Spec
 spec = do
     describe "Binary instances" specBinary
 
-    describe "newPeerId" $ do
+    describe "newPeerId" $
         it "yields a 20 byte `ByteString`" $
             monadicIO $ do
-                x <- run $ newPeerId
+                x <- run newPeerId
                 assert $ B.length x == 20
 
     describe "receiveHandshake" $ do
