@@ -37,6 +37,9 @@ module Butter.Core.Tracker.Client (
                                   , startTrackerClient
                                   , stopTrackerClient
                                   , completeTrackerClient
+                                  -- * Fetching peers out of the queue
+                                  , readPeerAddr
+                                  , readPeerAddrSTM
                                   -- * Low-level querying
                                   , queryTracker
                                   , queryTracker'
@@ -55,8 +58,8 @@ import Butter.Core.Torrent (TorrentStatus(..), TorrentStage(..), newTStatusTVar)
 import Butter.Core.Util (urlEncodeVars, writeList2TBQueueIO)
 import Control.Applicative ((<$>))
 import Control.Concurrent (ThreadId, forkIO, killThread, threadDelay)
-import Control.Concurrent.STM (TBQueue, TVar, newTBQueueIO, readTVarIO,
-                               atomically, isFullTBQueue)
+import Control.Concurrent.STM (TBQueue, STM, TVar, newTBQueueIO, readTVarIO,
+                               readTBQueue, atomically, isFullTBQueue)
 import Control.Monad (void)
 import Data.BEncode as BE (BEncode, (.:), (.=!), (.=?), (<*>?), (<*>!),
                            (<$>!), decode, endDict, fromDict, toDict)
@@ -67,6 +70,9 @@ import Data.Typeable (Typeable)
 import Network.Socket (PortNumber(..))
 import Network.HTTP.Client (Manager, httpLbs, parseUrl, responseBody,
                             queryString)
+
+-- * Subscribing for peers
+-------------------------------------------------------------------------------
 
 -- |
 -- Represents a tracker client, encapsulating the infinite loop around
@@ -157,6 +163,23 @@ stopTrackerClient tc = do
 completeTrackerClient :: TrackerClient -> IO ()
 completeTrackerClient tc =
     void $ queryTracker' (tcOptions tc) 0 "completed" 100 100
+
+
+-- * Fetching peers out of the queue
+-------------------------------------------------------------------------------
+
+-- |
+-- Reads the next peer from the 'TrackerClient''s queue
+readPeerAddrSTM :: TrackerClient -> STM PeerAddr
+readPeerAddrSTM (TrackerClient _ _ q _) = readTBQueue q
+
+-- |
+-- IO version of 'readPeerAddrSTM'
+readPeerAddr :: TrackerClient -> IO PeerAddr
+readPeerAddr = atomically . readPeerAddrSTM
+
+-- * Low-level querying
+-------------------------------------------------------------------------------
 
 -- |
 -- Queries an announce URL for peers. This function is not meant for client
