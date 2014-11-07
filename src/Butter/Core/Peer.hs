@@ -1,21 +1,27 @@
-{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE RecordWildCards #-}
 module Butter.Core.Peer where
 
+import Butter.Core.MetaInfo (InfoHash)
 import Butter.Core.PeerWire (PeerAddr(..), PeerId, PeerWireMessage(..),
                              PWBlock, PWInteger, connectToPeer,
-                             receiveHandshake, receiveMessage)
-import Control.Applicative ((<$>), (<*>))
-import Control.Concurrent (forkIO)
-import Control.Concurrent.Chan (Chan, writeChan)
-import Control.Concurrent.STM (TVar, atomically, modifyTVar, newTVar,
-                               readTVarIO, writeTVar)
+                             receiveHandshake, receiveMessage, sendMessage)
+import Control.Applicative ((<$>), (<*>), pure)
+import Control.Concurrent.STM (TChan, TVar, atomically, newTVar, readTVarIO,
+                               writeTChan, writeTVar)
 import Control.Monad (forever)
 import qualified Data.ByteString as B (ByteString)
 import Data.Conduit (ResumableSource)
 import Data.Conduit.Network (sourceSocket)
 import Network.Socket (Socket)
 
+-- * Peers
+-------------------------------------------------------------------------------
+
+-- ** Peer data types
+
+-- |
+-- Represents a peer connection; doesn't currently encapsulate the peer
+-- listening loop
 data Peer = Peer { _pSocket :: Socket
                  , _pSource :: TVar (ResumableSource IO B.ByteString)
                  , pId :: PeerId
@@ -24,23 +30,28 @@ data Peer = Peer { _pSocket :: Socket
                  , pAmChoked :: TVar Bool
                  , pIsInterested :: TVar Bool
                  , pAmInterested :: TVar Bool
-
-                 , pPieces :: TVar [PWInteger]
                  }
 
-data PeerEvent = ConnectionClosed
-               | BlockDownload { bdIndex :: PWInteger
-                               , bdBegin :: PWInteger
-                               , bdBlock :: PWBlock
+-- |
+-- Events broadcasted from a peer connection. This should be what is
+-- required to maintain the global state in sync
+data PeerMessage = ConnectionClosed
+                 | BlockDownload { bdIndex :: PWInteger
+                                 , bdBegin :: PWInteger
+                                 , bdBlock :: PWBlock
+                                 }
+                 | BlockCancel { bcIndex  :: PWInteger
+                               , bcBegin  :: PWInteger
+                               , bcLength :: PWInteger
                                }
-               | BlockCancel { bcIndex  :: PWInteger
-                             , bcBegin  :: PWInteger
-                             , bcLength :: PWInteger
+                 | BlockRequest { brIndex  :: PWInteger
+                                , brBegin  :: PWInteger
+                                , brLength :: PWInteger
+                                }
+                 | BlockHave { bhIndex :: PWInteger
                              }
-               | BlockRequest { brIndex  :: PWInteger
-                              , brBegin  :: PWInteger
-                              , brLength :: PWInteger
-                              }
+
+-- ** Creating and listening to connections
 
 -- |
 -- Creates a new peer object out of a write channel, of 'PeerEvent's and
@@ -50,55 +61,34 @@ data PeerEvent = ConnectionClosed
 -- Whenever a new peer event comes in, it'll send it upstream through the
 -- write channel. This assumes there's some manager entity watching over
 -- the channel.
-createPeer :: Chan PeerEvent -- ^ The channel events will be written to
-           -> PeerAddr       -- ^ A peer address, obtained with PeerWire.decode
-           -> IO Peer
-createPeer writechan addr = do
+createConnection :: PeerId            -- ^ The local peer's id
+                 -> InfoHash          -- ^ The `info_hash` for the download
+                 -> PeerAddr          -- ^ A peer's address
+                 -> IO Peer
+createConnection localPeerId infoHash addr = do
     sock <- connectToPeer addr
-    startPeer writechan sock Nothing
+    sendMessage sock $ PWHandshake infoHash localPeerId
+    tp <- receiveHandshake (sourceSocket sock) >>= validateHSTup infoHash
+    newHSPeer sock tp
 
 -- |
--- The same as 'createPeer' but receives an already connected 'Socket'.
--- This is to be used when accepting peer connections, rather than starting
--- them. It assumes that the client's handshake has already been sent.
---
--- The third parameter will make this function skip the handshake if set to
--- the received handshake information.
-startPeer :: Chan PeerEvent
-          -> Socket
-          -> Maybe (ResumableSource IO B.ByteString, PeerWireMessage)
-          -> IO Peer
-startPeer writechan sock mInfo = do
-    (rsrc, PWHandshake{..}) <- case mInfo of
-        Just info -> return info
-        Nothing -> let src = sourceSocket sock in
-            receiveHandshake src :: IO (ResumableSource IO B.ByteString,
-                                        PeerWireMessage)
-
-    (rsrcV, ic, ac, ii, ai, ps) <- atomically $ (,,,,,)
-                                       <$> newTVar rsrc
-                                       <*> newTVar True  <*> newTVar True
-                                       <*> newTVar False <*> newTVar False
-                                       <*> newTVar []
-
-    let peer = Peer { _pSocket = sock
-                    , _pSource = rsrcV
-                    , pId = pwHandshakePeerId
-                    , pIsChoked = ic
-                    , pAmChoked = ac
-                    , pIsInterested = ii
-                    , pAmInterested = ai
-                    , pPieces = ps
-                    }
-
-    _ <- forkIO $ listenPeer writechan peer
-
+-- Converts a 'Socket' representing an incomming connection from a peer,
+-- into a stablished 'Peer' object, after handshaking it.
+receiveConnection :: PeerId -> InfoHash -> Socket -> IO Peer
+receiveConnection localPeerId infoHash sock = do
+    tp <- receiveHandshake (sourceSocket sock) >>= validateHSTup infoHash
+    peer <- newHSPeer sock tp
+    sendHandshake infoHash localPeerId peer
     return peer
 
-listenPeer :: Chan PeerEvent -> Peer -> IO ()
-listenPeer writechan Peer{..} = forever $ do
+-- |
+-- Takes a peer and a message channel, starts to listen for messages from
+-- the peer and feeds the channel with events as they come in.
+listenPeer :: Peer -> TChan PeerMessage -> IO ()
+listenPeer Peer{..} writechan = forever $ do
     src <- readTVarIO _pSource
     (rsrc, message) <- receiveMessage src
+    putStrLn $ "Got message" ++ show message
 
     let updateSource = writeTVar _pSource rsrc
         updateSourceIO = atomically updateSource
@@ -115,15 +105,68 @@ listenPeer writechan Peer{..} = forever $ do
             update $ writeTVar pIsInterested True
         PWNotInterested ->
             update $ writeTVar pIsInterested False
-        PWRequest idx beg len -> do
-            updateSourceIO
-            writeChan writechan (BlockRequest idx beg len)
+        PWRequest idx beg len ->
+            update $ writeTChan writechan (BlockRequest idx beg len)
         PWHave idx ->
-            update $ modifyTVar pPieces (idx:)
-        PWPiece idx beg blk -> do
-            updateSourceIO
-            writeChan writechan (BlockDownload idx beg blk)
-        PWCancel idx beg len -> do
-            updateSourceIO
-            writeChan writechan (BlockCancel idx beg len)
+            update $ writeTChan writechan (BlockHave idx)
+        PWPiece idx beg blk ->
+            update $ writeTChan writechan (BlockDownload idx beg blk)
+        PWCancel idx beg len ->
+            update $ writeTChan writechan (BlockCancel idx beg len)
         _ -> updateSourceIO
+
+-- * Utility functions
+-------------------------------------------------------------------------------
+
+-- |
+-- Creates a peer connection out of its minimum components, with sane
+-- defaults.
+newPeer :: Socket -> ResumableSource IO B.ByteString -> PeerId -> IO Peer
+newPeer sock rsrc peerId = atomically $ Peer sock <$> newTVar rsrc
+                                                  <*> pure peerId
+                                                  <*> newTVar True
+                                                  <*> newTVar True
+                                                  <*> newTVar False
+                                                  <*> newTVar False
+
+-- |
+-- Creates a peer connection out of a 'Socket' and a tuple of a resumable
+-- source and  a 'PWHandshake' (fails if the 'PWMessage' received isn't
+-- a handshake).
+--
+-- This is a helper to allow the composition:
+-- > newHSPeer sock <=< validateHStup infoHash <=< receiveHandshake
+-- Rather than:
+-- > let src = sourceSocket sock
+-- > (rsrc, PWHanishake peerInfoHash peerId) <- receiveHandshake src
+-- > validateInfoHash infoHash peerInfoHash
+-- > newPeer sock rsrc peerId
+newHSPeer :: Socket -> (ResumableSource IO B.ByteString, PeerWireMessage)
+          -> IO Peer
+newHSPeer sock (rsrc, PWHandshake _ pid) = newPeer sock rsrc pid
+newHSPeer _ (_, _) = fail ""
+
+-- |
+-- Validates a tuple containing 'PWHandshake' as its second member. For use
+-- with the return value of 'receiveHandshake'. Returns the argument if
+-- valid, for further composition.
+validateHSTup :: InfoHash -> (a, PeerWireMessage) -> IO (a, PeerWireMessage)
+validateHSTup ih tup@(_, PWHandshake pih _) =
+    if pih == ih
+        then return tup
+        else fail ""
+validateHSTup _  _ = fail ""
+
+{-# ANN module "HLint: ignore Top-level binding with no type signature" #-}
+sendPeerMessage :: PeerWireMessage -> Peer -> IO ()
+sendPeerMessage msg peer = sendMessage (_pSocket peer) msg
+
+sendKeepAlive, sendChoke, sendUnchoke, sendInterested, sendNotInterested
+    :: Peer -> IO ()
+sendHandshake :: InfoHash -> PeerId -> Peer -> IO ()
+sendKeepAlive     = sendPeerMessage PWKeepAlive
+sendChoke         = sendPeerMessage PWChoke
+sendUnchoke       = sendPeerMessage PWUnchoke
+sendInterested    = sendPeerMessage PWInterested
+sendNotInterested = sendPeerMessage PWNotInterested
+sendHandshake i p = sendPeerMessage $ PWHandshake i p
