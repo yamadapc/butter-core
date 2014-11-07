@@ -101,6 +101,9 @@ stopPeerSource (lock, _) = void $ tryTakeMVar lock
 guardRunning :: PeerSource -> IO a -> IO a
 guardRunning (lock, _) f = readMVar lock >> f
 
+dupPeerSource :: PeerSource -> IO PeerSource
+dupPeerSource (_, c) = (,) <$> newMVar () <*> atomically (dupTChan c)
+
 mergeTChans :: TChan a -> TChan a -> IO (TChan a)
 mergeTChans c1 c2 = do
   c <- newTChanIO
