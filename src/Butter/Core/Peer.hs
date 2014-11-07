@@ -6,9 +6,8 @@ import Butter.Core.PeerWire (PeerAddr(..), PeerId, PeerWireMessage(..),
                              PWBlock, PWInteger, connectToPeer,
                              receiveHandshake, receiveMessage, sendMessage)
 import Control.Applicative ((<$>), (<*>), pure)
-import Control.Concurrent.STM (TChan, TVar, atomically, newTVar, readTVarIO,
-                               writeTChan, writeTVar)
-import Control.Monad (forever)
+import Control.Concurrent.STM (TChan, TVar, atomically, newTVar, writeTChan,
+                               writeTVar)
 import qualified Data.ByteString as B (ByteString)
 import Data.Conduit (ResumableSource)
 import Data.Conduit.Network (sourceSocket)
@@ -22,8 +21,8 @@ import Network.Socket (Socket)
 -- |
 -- Represents a peer connection; doesn't currently encapsulate the peer
 -- listening loop
-data Peer = Peer { _pSocket :: Socket
-                 , _pSource :: TVar (ResumableSource IO B.ByteString)
+data Peer = Peer { _pSource :: ResumableSource IO B.ByteString
+                 , _pSocket :: Socket
                  , pId :: PeerId
 
                  , pIsChoked :: TVar Bool
@@ -31,6 +30,9 @@ data Peer = Peer { _pSocket :: Socket
                  , pIsInterested :: TVar Bool
                  , pAmInterested :: TVar Bool
                  }
+
+instance Show Peer where
+    show Peer{..} = concat [ "Peer { ", show pId, ", ... }" ]
 
 -- |
 -- Events broadcasted from a peer connection. This should be what is
@@ -85,35 +87,32 @@ receiveConnection localPeerId infoHash sock = do
 -- Takes a peer and a message channel, starts to listen for messages from
 -- the peer and feeds the channel with events as they come in.
 listenPeer :: Peer -> TChan PeerMessage -> IO ()
-listenPeer Peer{..} writechan = forever $ do
-    src <- readTVarIO _pSource
-    (rsrc, message) <- receiveMessage src
+listenPeer peer@Peer{..} writechan = do
+    (rsrc, message) <- receiveMessage _pSource
     putStrLn $ "Got message" ++ show message
 
-    let updateSource = writeTVar _pSource rsrc
-        updateSourceIO = atomically updateSource
-        update stm = atomically $ updateSource >> stm
-
-    case message of
-        PWKeepAlive ->
-            updateSourceIO
+    atomically $ case message of
+        PWKeepAlive -> return ()
         PWChoke ->
-            update $ writeTVar pIsChoked True
+            writeTVar pIsChoked True
         PWUnchoke ->
-            update $ writeTVar pIsChoked False
+            writeTVar pIsChoked False
         PWInterested ->
-            update $ writeTVar pIsInterested True
+            writeTVar pIsInterested True
         PWNotInterested ->
-            update $ writeTVar pIsInterested False
+            writeTVar pIsInterested False
         PWRequest idx beg len ->
-            update $ writeTChan writechan (BlockRequest idx beg len)
+            writeTChan writechan (BlockRequest idx beg len)
         PWHave idx ->
-            update $ writeTChan writechan (BlockHave idx)
+            writeTChan writechan (BlockHave idx)
         PWPiece idx beg blk ->
-            update $ writeTChan writechan (BlockDownload idx beg blk)
+            writeTChan writechan (BlockDownload idx beg blk)
         PWCancel idx beg len ->
-            update $ writeTChan writechan (BlockCancel idx beg len)
-        _ -> updateSourceIO
+            writeTChan writechan (BlockCancel idx beg len)
+        _ -> return ()
+
+    listenPeer peer { _pSource = rsrc } writechan
+
 
 -- * Utility functions
 -------------------------------------------------------------------------------
@@ -122,12 +121,11 @@ listenPeer Peer{..} writechan = forever $ do
 -- Creates a peer connection out of its minimum components, with sane
 -- defaults.
 newPeer :: Socket -> ResumableSource IO B.ByteString -> PeerId -> IO Peer
-newPeer sock rsrc peerId = atomically $ Peer sock <$> newTVar rsrc
-                                                  <*> pure peerId
-                                                  <*> newTVar True
-                                                  <*> newTVar True
-                                                  <*> newTVar False
-                                                  <*> newTVar False
+newPeer sock rsrc peerId = atomically $ Peer rsrc sock <$> pure peerId
+                                                       <*> newTVar True
+                                                       <*> newTVar True
+                                                       <*> newTVar False
+                                                       <*> newTVar False
 
 -- |
 -- Creates a peer connection out of a 'Socket' and a tuple of a resumable
