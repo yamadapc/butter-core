@@ -71,17 +71,14 @@ startTrackerClient :: (MonadIO m, MonadReader TorrentDownload m)
 startTrackerClient = do
     opts <- view tdOptions
     st <- view tdStatus
-
-    (q, tid) <- liftIO $ do
+    liftIO $ do
         q <- newTBQueueIO (_cLimit opts)
         tid <- forkIO $ do
             tr <- queryTracker' opts (_cNumwant opts) "started" 0 0
             pushAddrs q tr
             waitInterval opts tr
             loopAnnounceUpdate opts st q
-        return (q, tid)
-
-    return (tid, q)
+        return (tid, q)
 
 -- |
 -- Stops the looping 'TrackerClient' thread and sends the tracker
@@ -92,7 +89,6 @@ stopTrackerClient :: (MonadIO m, MonadReader TorrentDownload m)
 stopTrackerClient (tid, _) = do
     st <- view tdStatus
     opts <- view tdOptions
-
     liftIO $ void $ do
         killThread tid
         TorrentStatus _ d u <- readTVarIO st
@@ -127,7 +123,6 @@ queryTracker :: Manager    -- ^ A HTTP manager
              -> IO TrackerResponse
 queryTracker manager clientId announceUrl p infoHash numwant evt downAmt upAmt =
     let PortNum p' = p in
-
     case parseUrl announceUrl of
         Nothing  -> fail "Invalid announce URL."
         Just req -> do
