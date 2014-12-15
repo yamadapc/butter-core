@@ -2,8 +2,9 @@
 module Butter.Core.MetaInfoSpec where
 
 import Data.BEncode
-import qualified Data.ByteString as B (readFile)
-import qualified Data.ByteString.Lazy as L (fromStrict, toStrict)
+import qualified Data.Binary as Binary (decode, encode)
+import qualified Data.ByteString as B (length, readFile)
+import qualified Data.ByteString.Lazy as L (fromStrict, length, toStrict)
 import qualified Data.ByteString.Base16 as Base16 (encode)
 import Test.Hspec
 
@@ -23,6 +24,11 @@ specBEncode = do
     it "toBEncode :: MetaInfo -> BValue" $ do
         f1 <- B.readFile "test/test1.torrent"
         let Right mi1 = decode f1 >>= fromBEncode :: Either String MetaInfo
+            pieces = fiPieces $ miInfo mi1
+            encoded = Binary.encode pieces
+
+        mapM_ ((`shouldBe` 20) . B.length . pHash) pieces
+        L.length encoded `shouldBe` fromIntegral (20 * length pieces)
         encode mi1 `shouldBe` L.fromStrict f1
 
     it "toBEncode :: FileInfo -> BValue" $ do
@@ -32,9 +38,15 @@ specBEncode = do
             Right fi2 = decode (L.toStrict f2) >>= fromBEncode :: Either String FileInfo
         fi1 `shouldBe` fi2
 
+    it "decode :: ByteString -> [Piece]" $ do
+        f <- B.readFile "test/test1-pieces"
+        let pieces = Binary.decode $
+                L.fromStrict f :: [Piece]
+        print pieces
+
     it "toBEncode :: FileNode -> BValue" $ do
         f1 <- B.readFile "test/test1-filenode"
-        let Right fn1 = decode f1 >>= fromBEncode :: Either String FileNode
+        let Right fn1 = decode f1 :: Either String FileNode
             f2 = encode fn1
             Right fn2 = decode (L.toStrict f2) >>= fromBEncode :: Either String FileNode
         fn1 `shouldBe` fn2
