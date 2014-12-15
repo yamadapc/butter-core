@@ -21,8 +21,8 @@ import Network.Socket (Socket)
 -- |
 -- Represents a peer connection; doesn't currently encapsulate the peer
 -- listening loop
-data Peer = Peer { _pSource :: ResumableSource IO B.ByteString
-                 , _pSocket :: Socket
+data Peer = Peer { pSource :: ResumableSource IO B.ByteString
+                 , pSocket :: Socket
                  , pId :: PeerId
 
                  , pIsChoked :: TVar Bool
@@ -63,9 +63,9 @@ data PeerMessage = ConnectionClosed
 -- Whenever a new peer event comes in, it'll send it upstream through the
 -- write channel. This assumes there's some manager entity watching over
 -- the channel.
-createConnection :: PeerId            -- ^ The local peer's id
-                 -> InfoHash          -- ^ The `info_hash` for the download
-                 -> PeerAddr          -- ^ A peer's address
+createConnection :: PeerId   -- ^ The local peer's id
+                 -> InfoHash -- ^ The `info_hash` for the download
+                 -> PeerAddr -- ^ A peer's address
                  -> IO Peer
 createConnection localPeerId infoHash addr = do
     sock <- connectToPeer addr
@@ -88,9 +88,7 @@ receiveConnection localPeerId infoHash sock = do
 -- the peer and feeds the channel with events as they come in.
 listenPeer :: Peer -> TChan PeerMessage -> IO ()
 listenPeer peer@Peer{..} writechan = do
-    (rsrc, message) <- receiveMessage _pSource
-    putStrLn $ "Got message" ++ show message
-
+    (rsrc, message) <- receiveMessage pSource
     atomically $ case message of
         PWKeepAlive -> return ()
         PWChoke ->
@@ -110,8 +108,7 @@ listenPeer peer@Peer{..} writechan = do
         PWCancel idx beg len ->
             writeTChan writechan (BlockCancel idx beg len)
         _ -> return ()
-
-    listenPeer peer { _pSource = rsrc } writechan
+    listenPeer peer { pSource = rsrc } writechan
 
 
 -- * Utility functions
@@ -157,7 +154,7 @@ validateHSTup _  _ = fail ""
 
 {-# ANN module "HLint: ignore Top-level binding with no type signature" #-}
 sendPeerMessage :: PeerWireMessage -> Peer -> IO ()
-sendPeerMessage msg peer = sendMessage (_pSocket peer) msg
+sendPeerMessage msg peer = sendMessage (pSocket peer) msg
 
 sendKeepAlive, sendChoke, sendUnchoke, sendInterested, sendNotInterested
     :: Peer -> IO ()

@@ -42,10 +42,9 @@ import Control.Applicative ((<$>))
 import Control.Concurrent (ThreadId, forkIO, killThread, threadDelay)
 import Control.Concurrent.STM (TBQueue, TVar, newTBQueueIO, readTVarIO,
                                atomically, isFullTBQueue)
-import Control.Lens
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, ask)
 import Data.BEncode as BE (BEncode, (.:), (.=!), (.=?), (<*>?), (<*>!), (<$>!),
                            decode, endDict, fromDict, toDict)
 import qualified Data.ByteString as B (ByteString)
@@ -69,12 +68,14 @@ type TrackerClient = (ThreadId, TBQueue PeerAddr)
 startTrackerClient :: (MonadIO m, MonadReader TorrentDownload m)
                    => m TrackerClient
 startTrackerClient = do
-    opts <- view tdOptions
-    st <- view tdStatus
+    td <- ask
+    let opts = tdOptions td
+        st   = tdStatus td
+
     liftIO $ do
-        q <- newTBQueueIO (_cLimit opts)
+        q <- newTBQueueIO (cLimit opts)
         tid <- forkIO $ do
-            tr <- queryTracker' opts (_cNumwant opts) "started" 0 0
+            tr <- queryTracker' opts (cNumwant opts) "started" 0 0
             pushAddrs q tr
             waitInterval opts tr
             loopAnnounceUpdate opts st q
@@ -87,20 +88,20 @@ stopTrackerClient :: (MonadIO m, MonadReader TorrentDownload m)
                   => TrackerClient
                   -> m ()
 stopTrackerClient (tid, _) = do
-    st <- view tdStatus
-    opts <- view tdOptions
+    td <- ask
+
     liftIO $ void $ do
         killThread tid
-        TorrentStatus _ d u <- readTVarIO st
-        queryTracker' opts 0 "stopped" d u
+        TorrentStatus _ d u <- readTVarIO (tdStatus td)
+        queryTracker' (tdOptions td) 0 "stopped" d u
 
 -- |
 -- Sends the @"completed" event to the tracker.
 completeTrackerClient :: (MonadIO m, MonadReader TorrentDownload m)
                       => m ()
 completeTrackerClient = do
-    opts <- view tdOptions
-    liftIO $ void $ queryTracker' opts 0 "completed" 100 100
+    td <- ask
+    liftIO $ void $ queryTracker' (tdOptions td) 0 "completed" 100 100
 
 
 -- * Low-level querying
@@ -148,7 +149,7 @@ queryTracker manager clientId announceUrl p infoHash numwant evt downAmt upAmt =
 queryTracker' :: TrackerClientOptions -> Integer -> String -> Integer -> Integer
               -> IO TrackerResponse
 queryTracker' TrackerClientOptions{..} =
-    queryTracker _cManager _cPeerId _cAnnounceUrl _cPort _cInfoHash
+    queryTracker cManager cPeerId cAnnounceUrl cPort cInfoHash
 
 -- |
 -- Starts an infinite loop, which keeps hitting the tracker announce URL
@@ -161,7 +162,7 @@ loopAnnounceUpdate opts tsVar q = readTVarIO tsVar >>= \case
     TorrentStatus TDownloading d u -> do
         f <- atomically $ isFullTBQueue q
         -- Don't ask for peers if the queue is full
-        tr <- let n = if f then 0 else _cNumwant opts
+        tr <- let n = if f then 0 else cNumwant opts
               in queryTracker' opts n "update" d u
         pushAddrs q tr >> waitInterval opts tr
         loopAnnounceUpdate opts tsVar q
@@ -183,7 +184,7 @@ waitInterval opts tr = threadDelay $ 1000000 * resolveInterval opts tr
 -- |
 -- Resolves the interval that needs to be waited between hits to the tracker
 resolveInterval :: TrackerClientOptions -> TrackerResponse -> Int
-resolveInterval opts tr = case _cInterval opts of
+resolveInterval opts tr = case cInterval opts of
     Just i -> maybe i (\m -> if m > i then m else i)
                     (fromInteger <$> trMinInterval tr)
     Nothing -> fromInteger $ trInterval tr

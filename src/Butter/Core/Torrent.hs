@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE LambdaCase #-}
 -- |
 -- Module      : Butter.Core.Torrent
 -- Copyright   : Pedro Tacla Yamada
@@ -16,7 +16,6 @@ import Butter.Core.Peer
 import Butter.Core.PeerWire
 import Control.Applicative ((<$>), (<*>))
 import Control.Concurrent.STM (TVar, newTVarIO)
-import Control.Lens.TH (makeLenses)
 import Control.Monad.IO.Class
 import qualified Data.ByteString as ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8 (unpack)
@@ -27,51 +26,48 @@ import Network.Socket (PortNumber(..))
 data TorrentStage = TStopped | TDownloading | TCompleted
   deriving(Eq, Ord, Show)
 
-data TorrentStatus = TorrentStatus { _tsStage      :: TorrentStage
-                                   , _tsDownloaded :: Integer
-                                   , _tsUploaded   :: Integer
+data TorrentStatus = TorrentStatus { tsStage      :: TorrentStage
+                                   , tsDownloaded :: Integer
+                                   , tsUploaded   :: Integer
                                    }
   deriving(Eq, Ord, Show)
-makeLenses ''TorrentStatus
 
 -- |
 -- Options for tracker announce querying
 data TrackerClientOptions =
-    TrackerClientOptions { _cManager :: Manager
+    TrackerClientOptions { cManager :: Manager
                          -- ^ An @HTTP.Client@ 'Manager'
-                         , _cPeerId :: PeerId
+                         , cPeerId :: PeerId
                          -- ^ The local peer's id
-                         , _cPort :: PortNumber
+                         , cPort :: PortNumber
                          -- ^ The port the local peer is
                          -- listening at
-                         , _cAnnounceUrl :: String
+                         , cAnnounceUrl :: String
                          -- ^ The announce URL to hit
-                         , _cInfoHash :: ByteString.ByteString
+                         , cInfoHash :: ByteString.ByteString
                          -- ^ The "info_hash" to query for
-                         , _cInterval :: Maybe Int
+                         , cInterval :: Maybe Int
                          -- ^ The interval between queries in
                          -- seconds. Will use the interval
                          -- suggested by the tracker if set to
                          -- @Nothing@. Will be ignored if bigger
                          -- than the tracker's minimum
-                         , _cNumwant :: Integer
+                         , cNumwant :: Integer
                          -- ^ The number of peers to ask for, on
                          -- each query
-                         , _cLimit :: Int
+                         , cLimit :: Int
                          -- ^ The limit of peers to ask for see
                          -- 'startTrackerClient' for more
                          -- information
                          }
-makeLenses ''TrackerClientOptions
 
-data TorrentDownload = TorrentDownload { _tdOptions  :: TrackerClientOptions
-                                       , _tdMetaInfo :: MetaInfo
-                                       , _tdStatus   :: TVar TorrentStatus
-                                       , _tdConns    :: TVar (Map.Map PeerId Peer)
-                                       , _tdPieces   :: TVar (Map.Map PeerId String)
+data TorrentDownload = TorrentDownload { tdOptions  :: TrackerClientOptions
+                                       , tdMetaInfo :: MetaInfo
+
+                                       , tdStatus   :: TVar TorrentStatus
+                                       , tdPeers    :: TVar (Map.Map PeerId Peer)
+                                       , tdPieces   :: TVar (Map.Map PeerId String)
                                        }
-makeLenses ''TorrentDownload
-
 
 newDownloadFromFile :: MonadIO m => FilePath -> m TorrentDownload
 newDownloadFromFile fp = do
@@ -83,6 +79,20 @@ newDownloadFromFile fp = do
 
     opts <- clientOptions pid (PortNum 3000) mi
     return $ TorrentDownload opts mi st m1 m2
+
+type DownloadStrategy = TorrentDownload -> IO [DownloadCommand]
+data DownloadCommand = DownloadPiece Piece
+                     | UnchokePeer   PeerId
+                     | ChokePeer     PeerId
+                     | Abort
+
+onLoopTick :: MonadIO m => TorrentDownload -> DownloadStrategy -> m ()
+onLoopTick td st = liftIO (st td) >>= mapM_ handleCommand
+  where handleCommand = \case
+            (DownloadPiece p) -> undefined
+            (UnchokePeer id) -> undefined
+            (ChokePeer id) -> undefined
+            Abort -> undefined
 
 -- |
 -- For most use cases, using this helper function should give you sensible
