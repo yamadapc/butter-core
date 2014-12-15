@@ -1,5 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 -- |
@@ -22,6 +24,7 @@
 module Butter.Core.MetaInfo ( FileInfo(..)
                             , FileNode(..)
                             , MetaInfo(..)
+                            , Piece(..)
                             , InfoHash
                             , fromBEncode
                             , readMetaInfoFile
@@ -31,11 +34,15 @@ module Butter.Core.MetaInfo ( FileInfo(..)
                             , encode
                             ) where
 
-import Control.Applicative ((<*>), pure)
+import Control.Applicative ((<$>), (<*>), optional, pure)
 import qualified Crypto.Hash.SHA1 as SHA1 (hashlazy)
 import Data.BEncode as BE
+import qualified Data.Binary as Binary (Binary(..), decode, encode, get, put)
+import qualified Data.Binary.Get as Binary.Get (getByteString)
+import qualified Data.Binary.Put as Binary.Put (putByteString)
 import Data.Typeable (Typeable)
 import qualified Data.ByteString as B (ByteString, readFile)
+import qualified Data.ByteString.Lazy as BL (fromStrict, toStrict)
 
 type InfoHash = B.ByteString
 
@@ -85,7 +92,7 @@ data FileInfo = FileInfo { fiFiles       :: !(Maybe [FileNode])
                          , fiMd5Sum      :: !(Maybe B.ByteString)
                          , fiName        :: !(Maybe B.ByteString)
                          , fiPieceLength :: !Integer
-                         , fiPieces      :: !B.ByteString
+                         , fiPieces      :: ![Piece]
                          , fiPrivate     :: !(Maybe Bool)
                          , fiHash        :: !InfoHash
                          }
@@ -97,7 +104,8 @@ instance BE.BEncode FileInfo where
                                     .: "md5sum"       .=? fiMd5Sum
                                     .: "name"         .=? fiName
                                     .: "piece length" .=! fiPieceLength
-                                    .: "pieces"       .=! fiPieces
+                                    .: "pieces" .=!
+                                        BL.toStrict (Binary.encode fiPieces)
                                     .: "private"      .=? fiPrivate
                                     .: endDict
 
@@ -107,7 +115,8 @@ instance BE.BEncode FileInfo where
                                          <*>? "md5sum"
                                          <*>? "name"
                                          <*>! "piece length"
-                                         <*>! "pieces"
+                                         <*> (Binary.decode <$>
+                                                BL.fromStrict <$>! "pieces")
                                          <*>? "private"
                                          <*> pure hash) d
 
@@ -129,3 +138,24 @@ instance BE.BEncode FileNode where
     fromBEncode = fromDict $ FileNode <$>! "length"
                                       <*>? "md5sum"
                                       <*>! "path"
+
+-- |
+-- Represents a torrent's Piece, both when de-serialized from a "files"
+-- node's "pieces" field, or when mapped from a peer network
+data Piece = Piece { pIndex :: Integer
+                   , pHash  :: B.ByteString
+                   }
+  deriving(Eq, Ord, Show)
+
+instance Binary.Binary [Piece] where
+    get = loop 0
+      where loop i = do
+                mb <- optional (Binary.Get.getByteString 20)
+                case mb of
+                    Just b -> do
+                        bs <- loop (i + 1)
+                        return $ Piece i b : bs
+                    Nothing -> return []
+
+    put [] = return ()
+    put (p:ps) = Binary.Put.putByteString (pHash p) >> Binary.put ps
