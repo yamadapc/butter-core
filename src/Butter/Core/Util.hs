@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 -- |
 -- General shared logic.
 --
@@ -7,9 +8,12 @@
 -- worked on.
 module Butter.Core.Util where
 
+import Control.Applicative ((<$>))
 import Control.Concurrent.STM (STM, TBQueue, atomically, isFullTBQueue,
                                writeTBQueue)
 import Control.Monad (unless)
+import Data.Binary (Binary(..), Get, Put, get, put)
+import Data.Binary.Get (isEmpty)
 import Data.Char (ord)
 import Data.List (partition)
 import Numeric (showHex)
@@ -57,3 +61,22 @@ writeList2TBQueue q (x:xs) = do
     f <- isFullTBQueue q
     unless f $ writeTBQueue q x >>
                writeList2TBQueue q xs
+
+-- |
+-- Puts a list of 'Binary' instance elements directly concatenating their
+-- serialized values
+putAll :: Binary a => [a] -> Put
+putAll = mapM_ put
+
+-- |
+-- Consumes all elements, getting a single type. Modeled after @binary@'s
+-- internal funtion @getMany@
+getAll :: Binary a => Get [a]
+getAll = go []
+  where go acc = get >>= \x -> isEmpty >>= \case
+            True  -> return $ reverse (x:acc)
+            False -> seq x $ (x:) <$> getAll
+
+splitEvery :: Int -> [a] -> [[a]]
+splitEvery _ [] = []
+splitEvery n xs = let (ys, xs') = splitAt n xs in ys : splitEvery n xs'

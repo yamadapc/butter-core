@@ -28,12 +28,12 @@ module Butter.Core.PeerWire (
   where
 
 import Butter.Core.MetaInfo (InfoHash)
+import Butter.Core.Util (getAll, putAll)
 import Control.Applicative ((<$>), (<*>))
 import Control.Exception (AssertionFailed(..))
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.Binary (Binary, encode, decode, get, put)
-import Data.Binary.Get (Get, isEmpty, getByteString, getWord16le, getWord32le,
-                        skip)
+import Data.Binary.Get (Get, getByteString, getWord16le, getWord32le, skip)
 import Data.Binary.Put (Put, putByteString, putWord16le, putWord32le)
 import qualified Data.ByteString as B (ByteString, length)
 import qualified Data.ByteString.Char8 as C (pack)
@@ -241,18 +241,3 @@ instance Binary PeerAddr where
 instance Binary [PeerAddr] where
     get = getAll
     put = putAll
-
--- |
--- Puts a list of 'Binary' instance elements directly concatenating their
--- serialized values
-putAll :: Binary a => [a] -> Put
-putAll = mapM_ put
-
--- |
--- Consumes all elements, getting a single type. Modeled after @binary@'s
--- internal funtion @getMany@
-getAll :: Binary a => Get [a]
-getAll = go []
-  where go acc = get >>= \x -> isEmpty >>= \case
-            True  -> return $ reverse (x:acc)
-            False -> seq x $ (x:) <$> getAll
