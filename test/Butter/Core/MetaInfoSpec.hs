@@ -42,7 +42,7 @@ specBEncode = do
         f <- B.readFile "test/test1-pieces"
         let pieces = Binary.decode $
                 L.fromStrict f :: [Piece]
-        print pieces
+        Binary.encode pieces `shouldBe` L.fromStrict f
 
     it "toBEncode :: FileNode -> BValue" $ do
         f1 <- B.readFile "test/test1-filenode"
