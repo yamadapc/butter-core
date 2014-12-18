@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Butter.Core.Peer where
 
+import Butter.Core.Block (BlockId(..))
 import Butter.Core.MetaInfo (InfoHash)
 import Butter.Core.PeerWire (PeerAddr(..), PeerId, PeerWireMessage(..),
                              PWBlock, PWInteger, connectToPeer,
@@ -25,6 +26,7 @@ data Peer = Peer { pSource :: ResumableSource IO B.ByteString
                  , pSocket :: Socket
                  , pId :: PeerId
 
+                 , pRequestedBlocks :: TVar [BlockId]
                  , pIsChoked :: TVar Bool
                  , pAmChoked :: TVar Bool
                  , pIsInterested :: TVar Bool
@@ -119,6 +121,7 @@ listenPeer peer@Peer{..} writechan = do
 -- defaults.
 newPeer :: Socket -> ResumableSource IO B.ByteString -> PeerId -> IO Peer
 newPeer sock rsrc peerId = atomically $ Peer rsrc sock <$> pure peerId
+                                                       <*> newTVar []
                                                        <*> newTVar True
                                                        <*> newTVar True
                                                        <*> newTVar False
@@ -165,3 +168,11 @@ sendUnchoke       = sendPeerMessage PWUnchoke
 sendInterested    = sendPeerMessage PWInterested
 sendNotInterested = sendPeerMessage PWNotInterested
 sendHandshake i p = sendPeerMessage $ PWHandshake i p
+
+sendHave :: PWInteger -> Peer -> IO ()
+sendHave i = sendPeerMessage (PWHave i)
+
+sendRequest, sendCancel
+    :: BlockId -> Peer -> IO ()
+sendRequest (BlockId idx bgn end) = sendPeerMessage (PWRequest idx bgn end)
+sendCancel  (BlockId idx bgn end) = sendPeerMessage (PWCancel  idx bgn end)
